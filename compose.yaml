@@ -1,0 +1,14 @@
+---
+services:
+  s3:
+    image: "minio/minio"
+    ports:
+      - "4567:9000"
+    environment:
+      MINIO_ROOT_USER: AAAAAAAAAAAAAAAAAAAA
+      MINIO_ROOT_PASSWORD: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+    volumes:
+      - ./tmp/s3:/data
+    command:
+      - server
+      - /data
