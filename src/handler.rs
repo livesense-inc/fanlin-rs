@@ -2,7 +2,7 @@ use super::config;
 use super::infra;
 use super::query;
 use image::{
-    codecs::{png, webp},
+    codecs::{jpeg, png, webp},
     imageops::{overlay, FilterType},
     DynamicImage, ImageBuffer, ImageFormat, ImageReader, Rgba,
 };
@@ -84,6 +84,15 @@ impl State {
                 let ft = png::FilterType::Adaptive;
                 let encoder = png::PngEncoder::new_with_quality(&mut buffer, ct, ft);
                 img.write_with_encoder(encoder)?;
+            }
+            ImageFormat::Jpeg => {
+                let q = match params.quality() {
+                    n if n < 1 => 1,
+                    n if n > 100 => 100,
+                    n => n,
+                };
+                let mut encoder = jpeg::JpegEncoder::new_with_quality(&mut buffer, q);
+                encoder.encode_image(&img)?;
             }
             ImageFormat::WebP => {
                 // https://docs.rs/image/latest/image/codecs/webp/struct.WebPEncoder.html
