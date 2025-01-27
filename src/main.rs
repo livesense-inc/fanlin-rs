@@ -3,14 +3,14 @@ extern crate tokio;
 
 use axum::{
     body::Body,
-    extract::{OriginalUri, Query, State},
+    extract::{ConnectInfo, OriginalUri, Query, State},
     http::StatusCode,
     response::IntoResponse,
     routing::get,
     Router,
 };
 use chrono::prelude::*;
-use std::{sync::Arc, time::Duration};
+use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::{net::TcpListener, signal};
 use tower_http::timeout::TimeoutLayer;
 
@@ -35,19 +35,28 @@ async fn main() {
         .layer(TimeoutLayer::new(Duration::from_secs(10)))
         .with_state(state.clone());
 
-    println!("{} Serving on {}", Local::now(), state.root_uri);
-    axum::serve(listener, router)
-        .with_graceful_shutdown(shutdown_signal())
-        .await
-        .unwrap();
+    println!(
+        "{} Serving on {}:{}",
+        Local::now(),
+        &cfg.bind_addr,
+        &cfg.port
+    );
+    axum::serve(
+        listener,
+        router.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown_signal())
+    .await
+    .unwrap();
 }
 
 async fn generic_handler(
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     OriginalUri(uri): OriginalUri,
     Query(params): Query<query::Query>,
     State(state): State<Arc<handler::State>>,
 ) -> impl IntoResponse {
-    println!("{} {}{}", Local::now(), state.root_uri, uri);
+    println!("{} {} {}", Local::now(), addr, uri);
     // https://docs.rs/axum/latest/axum/response/index.html
     let path = uri.path();
     let original = match state.get_image(path).await {

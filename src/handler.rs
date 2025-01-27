@@ -11,17 +11,11 @@ use std::io::Cursor;
 pub struct State {
     config: config::Config,
     client: infra::Client,
-    pub root_uri: String,
 }
 
 impl State {
     pub fn new(config: config::Config, client: infra::Client) -> Self {
-        let root_uri = format!("http://127.0.0.1:{}", config.port);
-        Self {
-            config,
-            client,
-            root_uri,
-        }
+        Self { config, client }
     }
 
     pub async fn get_image(
