@@ -19,14 +19,19 @@ impl Query {
     }
 
     pub fn fill_color(&self) -> (u8, u8, u8) {
-        match &self.rgb {
-            Some(rgb) => {
-                let mut iter = rgb.split(',').map(|e| e.parse::<u8>().unwrap());
-                (
-                    iter.next().unwrap(),
-                    iter.next().unwrap(),
-                    iter.next().unwrap(),
-                )
+        match self.rgb.as_ref() {
+            Some(text) => {
+                let rgb: Vec<u8> = text
+                    .split(',')
+                    .map(|e| match e.parse::<u8>() {
+                        Ok(c) => c,
+                        Err(_) => 32,
+                    })
+                    .collect();
+                if rgb.len() != 3usize {
+                    return (32, 32, 32);
+                }
+                (rgb[0], rgb[1], rgb[2])
             }
             None => (32, 32, 32),
         }
