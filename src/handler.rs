@@ -58,7 +58,11 @@ impl State {
         if let Some((width, height)) = params.dimensions() {
             // https://docs.rs/image/latest/image/struct.ImageBuffer.html
             if width != img.width() || height != img.height() {
-                img = img.resize(width, height, FilterType::Lanczos3);
+                if params.cropping() {
+                    img = img.resize_to_fill(width, height, FilterType::Lanczos3);
+                } else {
+                    img = img.resize(width, height, FilterType::Lanczos3);
+                }
             }
             if width > img.width() || height > img.height() {
                 let (r, g, b) = params.fill_color();
