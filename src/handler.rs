@@ -2,7 +2,7 @@ use super::config;
 use super::infra;
 use super::query;
 use image::{
-    codecs::png,
+    codecs::{png, webp},
     imageops::{overlay, FilterType},
     DynamicImage, ImageBuffer, ImageFormat, ImageReader, Rgba,
 };
@@ -44,10 +44,15 @@ impl State {
         // https://docs.rs/image/latest/image/struct.ImageReader.html
         let cursor = Cursor::new(original);
         let reader = ImageReader::new(cursor).with_guessed_format()?;
-        let format = match reader.format() {
-            Some(f) => f,
-            None => return Err(Box::from("unknown format")),
-        };
+        let format: image::ImageFormat;
+        if params.use_webp() {
+            format = ImageFormat::WebP;
+        } else {
+            format = match reader.format() {
+                Some(f) => f,
+                None => return Err(Box::from("unknown format")),
+            };
+        }
         // https://docs.rs/image/latest/image/enum.DynamicImage.html
         let mut img = reader.decode()?;
         if let Some((width, height)) = params.dimensions() {
@@ -79,6 +84,20 @@ impl State {
                 let ft = png::FilterType::Adaptive;
                 let encoder = png::PngEncoder::new_with_quality(&mut buffer, ct, ft);
                 img.write_with_encoder(encoder)?;
+            }
+            ImageFormat::WebP => {
+                // https://docs.rs/image/latest/image/codecs/webp/struct.WebPEncoder.html
+                match params.quality() {
+                    100 => {
+                        let encoder = webp::WebPEncoder::new_lossless(&mut buffer);
+                        img.write_with_encoder(encoder)?;
+                    }
+                    _ => {
+                        // TODO: support lossy encoding
+                        let encoder = webp::WebPEncoder::new_lossless(&mut buffer);
+                        img.write_with_encoder(encoder)?;
+                    }
+                };
             }
             _ => img.write_to(&mut buffer, format)?,
         }
