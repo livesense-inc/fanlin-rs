@@ -1,0 +1,26 @@
+{
+  "port": 3000,
+  "bind_addr": "0.0.0.0",
+  "client": {
+    "s3": {
+      "aws_endpoint_url": "http://127.0.0.1:4567",
+      "aws_region": "ap-northeast-1",
+      "aws_access_key_id": "AAAAAAAAAAAAAAAAAAAA",
+      "aws_secret_access_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    },
+    "web": {
+      "user_agent": "fanlin-rs/0.0.1",
+      "timeout": 5
+    }
+  },
+  "providers": {
+    "foo": {
+      "kind": "s3",
+      "src": "s3://local-test/images"
+    },
+    "bar": {
+      "kind": "web",
+      "src": "http://127.0.0.1:3000/foo"
+    }
+  }
+}

@@ -21,7 +21,7 @@ mod query;
 
 #[tokio::main]
 async fn main() {
-    let cfg = config::Config::new();
+    let cfg = config::Config::new("fanlin.json").unwrap();
     let listener = TcpListener::bind(format!("{}:{}", &cfg.bind_addr, &cfg.port))
         .await
         .unwrap();

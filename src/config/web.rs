@@ -1,14 +1,7 @@
-#[derive(Clone, Copy)]
-pub struct Config {
-    pub user_agent: &'static str,
-    pub timeout: u64,
-}
+use serde::Deserialize;
 
-impl Config {
-    pub fn new() -> Self {
-        Self {
-            user_agent: "fanlin/0.0.1",
-            timeout: 5u64,
-        }
-    }
+#[derive(Clone, Debug, Deserialize)]
+pub struct Config {
+    pub user_agent: String,
+    pub timeout: usize,
 }

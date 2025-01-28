@@ -1082,6 +1082,7 @@ dependencies = [
  "image",
  "reqwest",
  "serde",
+ "serde_json",
  "tokio",
  "tower-http",
 ]

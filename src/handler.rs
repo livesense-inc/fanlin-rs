@@ -9,13 +9,16 @@ use image::{
 use std::io::Cursor;
 
 pub struct State {
-    config: config::Config,
+    providers: Vec<(String, config::Provider)>,
     client: infra::Client,
 }
 
 impl State {
-    pub fn new(config: config::Config, client: infra::Client) -> Self {
-        Self { config, client }
+    pub fn new(cfg: config::Config, client: infra::Client) -> Self {
+        Self {
+            providers: cfg.providers.into_iter().map(|(k, v)| (k, v)).collect(),
+            client,
+        }
     }
 
     pub async fn get_image(
@@ -26,12 +29,13 @@ impl State {
         if path.len() == 0 {
             return None;
         }
-        for (path_prefix, provider) in self.config.providers.iter() {
+        // FIXME: E0521
+        for (path_prefix, provider) in self.providers.iter() {
             let prefix = path_prefix.trim_start_matches("/");
             if !path.starts_with(prefix) {
                 continue;
             }
-            match provider.kind {
+            match provider.kind.as_str() {
                 "s3" => {
                     let bucket = &provider.src;
                     let key = path.trim_start_matches(prefix);

@@ -1,53 +1,38 @@
 pub mod s3;
 pub mod web;
 
+use serde::Deserialize;
 use std::collections::HashMap;
+use std::fs::File;
+use std::io::BufReader;
+use std::path::Path;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Deserialize)]
 pub struct Provider {
-    pub kind: &'static str,
-    pub src: &'static str,
+    pub kind: String,
+    pub src: String,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Deserialize)]
 pub struct Client {
     pub s3: s3::Config,
     pub web: web::Config,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Deserialize)]
 pub struct Config {
-    pub port: &'static str,
-    pub bind_addr: &'static str,
+    pub port: usize,
+    pub bind_addr: String,
     pub client: Client,
-    pub providers: HashMap<&'static str, Provider>,
+    pub providers: HashMap<String, Provider>,
 }
 
 impl Config {
-    pub fn new() -> Self {
-        Self {
-            port: "3000",
-            bind_addr: "0.0.0.0",
-            client: Client {
-                s3: s3::Config::new(),
-                web: web::Config::new(),
-            },
-            providers: HashMap::from([
-                (
-                    "/foo",
-                    Provider {
-                        kind: "s3",
-                        src: "local-test",
-                    },
-                ),
-                (
-                    "/bar",
-                    Provider {
-                        kind: "web",
-                        src: "http://127.0.0.1:3000/foo",
-                    },
-                ),
-            ]),
-        }
+    pub fn new<P: AsRef<Path>>(path: P) -> Result<Config, Box<dyn std::error::Error>> {
+        // https://docs.rs/serde_json/latest/serde_json/fn.from_reader.html
+        let file = File::open(path)?;
+        let reader = BufReader::new(file);
+        let cfg = serde_json::from_reader(reader)?;
+        Ok(cfg)
     }
 }

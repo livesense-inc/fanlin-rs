@@ -1,4 +1,3 @@
-use super::super::config;
 use reqwest::StatusCode;
 use std::time::Duration;
 
@@ -7,11 +6,10 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn new(cfg: &config::web::Config) -> Self {
+    pub fn new(ua: &str, timeout: u64) -> Self {
         let client = reqwest::ClientBuilder::new()
-            .user_agent(cfg.user_agent)
-            .timeout(Duration::from_secs(cfg.timeout))
-            .pool_idle_timeout(Duration::from_secs(30u64));
+            .user_agent(ua)
+            .timeout(Duration::from_secs(timeout));
         Self {
             http: client.build().unwrap(),
         }

@@ -1,4 +1,3 @@
-use super::super::config;
 use aws_config;
 use aws_credential_types::Credentials;
 use aws_sdk_s3;
@@ -9,22 +8,28 @@ pub struct Client {
 }
 
 impl Client {
-    pub async fn new(app_cfg: &config::s3::Config) -> Self {
-        let aws_cfg = Self::make_aws_config(app_cfg).await;
+    pub async fn new(endpoint: &str, region: &str, access_key: &str, secret_key: &str) -> Self {
+        let aws_cfg = Self::make_aws_config(endpoint, region, access_key, secret_key).await;
         Self {
             s3: aws_sdk_s3::Client::new(&aws_cfg),
         }
     }
 
-    async fn make_aws_config(cfg: &config::s3::Config) -> aws_config::SdkConfig {
-        if cfg.aws_endpoint_url.len() == 0 {
-            return aws_config::from_env().region(cfg.aws_region).load().await;
+    async fn make_aws_config(
+        endpoint: &str,
+        _region: &str,
+        access_key: &str,
+        secret_key: &str,
+    ) -> aws_config::SdkConfig {
+        // FIXME: region string has &'static str lifetime
+        if endpoint.len() == 0 {
+            return aws_config::from_env().region("ap-northeast-1").load().await;
         }
 
-        let creds = Credentials::from_keys(cfg.aws_access_key_id, cfg.aws_secret_access_key, None);
+        let creds = Credentials::from_keys(access_key, secret_key, None);
         aws_config::from_env()
-            .endpoint_url(cfg.aws_endpoint_url)
-            .region(cfg.aws_region)
+            .endpoint_url(endpoint)
+            .region("ap-northeast-1")
             .credentials_provider(creds)
             .load()
             .await
