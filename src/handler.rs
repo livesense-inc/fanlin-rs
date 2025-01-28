@@ -9,16 +9,13 @@ use image::{
 use std::io::Cursor;
 
 pub struct State {
-    providers: Vec<(String, config::Provider)>,
+    providers: Vec<config::Provider>,
     client: infra::Client,
 }
 
 impl State {
-    pub fn new(cfg: config::Config, client: infra::Client) -> Self {
-        Self {
-            providers: cfg.providers.into_iter().map(|(k, v)| (k, v)).collect(),
-            client,
-        }
+    pub fn new(providers: Vec<config::Provider>, client: infra::Client) -> Self {
+        Self { providers, client }
     }
 
     pub async fn get_image(
@@ -30,8 +27,8 @@ impl State {
             return None;
         }
         // FIXME: E0521
-        for (path_prefix, provider) in self.providers.iter() {
-            let prefix = path_prefix.trim_start_matches("/");
+        for provider in self.providers.iter() {
+            let prefix = provider.path.trim_start_matches("/");
             if !path.starts_with(prefix) {
                 continue;
             }

@@ -2,13 +2,13 @@ pub mod s3;
 pub mod web;
 
 use serde::Deserialize;
-use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
 
 #[derive(Clone, Deserialize)]
 pub struct Provider {
+    pub path: String,
     pub kind: String,
     pub src: String,
 }
@@ -24,7 +24,7 @@ pub struct Config {
     pub port: usize,
     pub bind_addr: String,
     pub client: Client,
-    pub providers: HashMap<String, Provider>,
+    pub providers: Vec<Provider>,
 }
 
 impl Config {

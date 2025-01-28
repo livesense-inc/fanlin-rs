@@ -26,7 +26,7 @@ async fn main() {
         .await
         .unwrap();
     let cli = infra::Client::new(&cfg).await;
-    let state = Arc::new(handler::State::new(cfg.clone(), cli));
+    let state = Arc::new(handler::State::new(cfg.providers.clone(), cli));
     let router = Router::new()
         .route("/ping", get(|| async { "pong" }))
         .fallback(generic_handler)
