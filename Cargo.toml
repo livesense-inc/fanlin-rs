@@ -10,6 +10,7 @@ aws-sdk-s3 = "1.69.0"
 axum = "0.8.1"
 chrono = "0.4.39"
 image = "0.25.5"
+reqwest = "0.12"
 serde = { version = "1.0.217", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }
 tower-http = { version = "0.6.2", features = ["timeout"] }

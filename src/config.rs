@@ -7,6 +7,8 @@ pub struct Config {
     pub aws_access_key_id: &'static str,
     pub aws_secret_access_key: &'static str,
     pub aws_s3_bucket: &'static str,
+    pub user_agent: &'static str,
+    pub timeout: u64,
 }
 
 impl Config {
@@ -19,6 +21,8 @@ impl Config {
             aws_access_key_id: "AAAAAAAAAAAAAAAAAAAA",
             aws_secret_access_key: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
             aws_s3_bucket: "local-test",
+            user_agent: "fanlin/0.0.1",
+            timeout: 5u64,
         }
     }
 }
