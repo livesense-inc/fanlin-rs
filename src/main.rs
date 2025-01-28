@@ -22,11 +22,9 @@ mod query;
 #[tokio::main]
 async fn main() {
     let cfg = config::Config::new();
-
     let listener = TcpListener::bind(format!("{}:{}", &cfg.bind_addr, &cfg.port))
         .await
         .unwrap();
-
     let cli = infra::Client::new(&cfg).await;
     let state = Arc::new(handler::State::new(cfg.clone(), cli));
     let router = Router::new()
@@ -34,7 +32,6 @@ async fn main() {
         .fallback(generic_handler)
         .layer(TimeoutLayer::new(Duration::from_secs(10)))
         .with_state(state.clone());
-
     println!(
         "{} Serving on {}:{}",
         Local::now(),
@@ -63,7 +60,7 @@ async fn generic_handler(
         Some(result) => match result {
             Ok(img) => img,
             Err(err) => {
-                eprintln!("failled to get original image; {:?}", err);
+                eprintln!("failled to get an original image; {:?}", err);
                 return (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     Body::from("server error".to_string()),
@@ -76,16 +73,16 @@ async fn generic_handler(
     };
     // https://docs.rs/axum/latest/axum/body/struct.Body.html
     // https://github.com/tokio-rs/axum/blob/main/examples/stream-to-file/src/main.rs
-    match state.process_image(original, params) {
-        Ok(processed) => (StatusCode::OK, Body::from(processed)),
-        Err(err) => {
-            eprintln!("failed to process image; {:?}", err);
+    state.process_image(original, params).map_or_else(
+        |err| {
+            eprintln!("failed to process an image; {:?}", err);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Body::from("server error".to_string()),
             )
-        }
-    }
+        },
+        |processed| (StatusCode::OK, Body::from(processed)),
+    )
 }
 
 async fn shutdown_signal() {

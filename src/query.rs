@@ -19,42 +19,27 @@ impl Query {
     }
 
     pub fn fill_color(&self) -> (u8, u8, u8) {
-        match self.rgb.as_ref() {
-            Some(text) => {
-                let rgb: Vec<u8> = text
-                    .split(',')
-                    .map(|e| match e.parse::<u8>() {
-                        Ok(c) => c,
-                        Err(_) => 32,
-                    })
-                    .collect();
-                if rgb.len() != 3usize {
-                    return (32, 32, 32);
-                }
-                (rgb[0], rgb[1], rgb[2])
+        self.rgb.as_ref().map_or((32, 32, 32), |text| {
+            let rgb: Vec<u8> = text
+                .split(',')
+                .map(|e| e.parse::<u8>().map_or(32, |v| v))
+                .collect();
+            if rgb.len() != 3usize {
+                return (32, 32, 32);
             }
-            None => (32, 32, 32),
-        }
+            (rgb[0], rgb[1], rgb[2])
+        })
     }
 
     pub fn quality(&self) -> u8 {
-        match self.quality {
-            Some(v) => v,
-            None => 85,
-        }
+        self.quality.map_or(85, |v| v)
     }
 
     pub fn cropping(&self) -> bool {
-        match self.crop {
-            Some(v) => v,
-            None => false,
-        }
+        self.crop.map_or(false, |v| v)
     }
 
     pub fn use_webp(&self) -> bool {
-        match self.webp {
-            Some(v) => v,
-            None => false,
-        }
+        self.webp.map_or(false, |v| v)
     }
 }

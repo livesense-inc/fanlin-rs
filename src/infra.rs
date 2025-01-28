@@ -39,10 +39,9 @@ impl Client {
         // https://docs.rs/aws-sdk-s3/latest/aws_sdk_s3/primitives/struct.ByteStream.html
         match self.s3.get_object().bucket(bucket).key(key).send().await {
             Ok(output) => {
-                let mut buffer = match output.content_length {
-                    Some(size) => Vec::with_capacity(size as usize),
-                    None => Vec::new(),
-                };
+                let mut buffer = output
+                    .content_length
+                    .map_or_else(|| Vec::new(), |size| Vec::with_capacity(size as usize));
                 let mut reader = output.body.into_async_read();
                 match tokio::io::copy_buf(&mut reader, &mut buffer).await {
                     Ok(_) => (),
