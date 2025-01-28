@@ -20,14 +20,31 @@ impl State {
 
     pub async fn get_image(
         &self,
-        path: &str,
+        orig_path: &str,
     ) -> Option<Result<Vec<u8>, Box<dyn std::error::Error>>> {
-        let bucket = self.config.aws_s3_bucket;
-        let key = path.trim_start_matches("/");
-        if key.len() == 0 {
+        let path = orig_path.trim_start_matches("/");
+        if path.len() == 0 {
             return None;
         }
-        self.client.s3.get_object(&bucket, &key).await
+        for (path_prefix, provider) in self.config.providers.iter() {
+            let prefix = path_prefix.trim_start_matches("/");
+            if !path.starts_with(prefix) {
+                continue;
+            }
+            match provider.kind {
+                "s3" => {
+                    let bucket = &provider.src;
+                    let key = path.trim_start_matches(prefix);
+                    return self.client.s3.get_object(bucket, key).await;
+                }
+                "web" => {
+                    let url = format!("{}{}", provider.src, path.trim_start_matches(prefix));
+                    return self.client.web.get_image(&url).await;
+                }
+                _ => return None,
+            }
+        }
+        return None;
     }
 
     pub fn process_image(

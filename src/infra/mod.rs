@@ -11,8 +11,8 @@ pub struct Client {
 impl Client {
     pub async fn new(cfg: &config::Config) -> Self {
         Self {
-            s3: s3::Client::new(cfg).await,
-            web: web::Client::new(cfg),
+            s3: s3::Client::new(&cfg.client.s3).await,
+            web: web::Client::new(&cfg.client.web),
         }
     }
 }

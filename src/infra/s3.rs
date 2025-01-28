@@ -9,14 +9,14 @@ pub struct Client {
 }
 
 impl Client {
-    pub async fn new(app_cfg: &config::Config) -> Self {
+    pub async fn new(app_cfg: &config::s3::Config) -> Self {
         let aws_cfg = Self::make_aws_config(app_cfg).await;
         Self {
             s3: aws_sdk_s3::Client::new(&aws_cfg),
         }
     }
 
-    async fn make_aws_config(cfg: &config::Config) -> aws_config::SdkConfig {
+    async fn make_aws_config(cfg: &config::s3::Config) -> aws_config::SdkConfig {
         if cfg.aws_endpoint_url.len() == 0 {
             return aws_config::from_env().region(cfg.aws_region).load().await;
         }
