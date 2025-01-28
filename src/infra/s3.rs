@@ -1,4 +1,4 @@
-use super::config;
+use super::super::config;
 use aws_config;
 use aws_credential_types::Credentials;
 use aws_sdk_s3;
@@ -30,7 +30,7 @@ impl Client {
             .await
     }
 
-    pub async fn get_s3_object<'a>(
+    pub async fn get_object<'a>(
         &self,
         bucket: &'static str,
         key: &'a str,

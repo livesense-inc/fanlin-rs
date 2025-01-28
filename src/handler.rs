@@ -27,7 +27,7 @@ impl State {
         if key.len() == 0 {
             return None;
         }
-        self.client.get_s3_object(&bucket, &key).await
+        self.client.s3.get_object(&bucket, &key).await
     }
 
     pub fn process_image(
