@@ -17,7 +17,7 @@ $ cargo run --release
 # http://127.0.0.1:3000/bar/image.png?w=1000&h=500
 ```
 
-## Processing parameter via query string
+## Parameters for image processing via query string
 
 | parameter | description | example |
 | --- | --- | --- |
