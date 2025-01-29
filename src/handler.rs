@@ -1,6 +1,7 @@
 use super::config;
 use super::infra;
 use super::query;
+use axum::http::uri::Uri;
 use image::{
     codecs::{jpeg, png, webp},
     imageops::{overlay, FilterType},
@@ -31,13 +32,14 @@ impl State {
             if !path.starts_with(prefix) {
                 continue;
             }
-            match provider.kind.as_str() {
+            let uri = &provider.src.parse::<Uri>().unwrap();
+            match uri.scheme().unwrap().as_str() {
                 "s3" => {
-                    let bucket = &provider.src;
+                    let bucket = uri.host().unwrap();
                     let key = path.trim_start_matches(prefix);
                     return self.client.s3.get_object(bucket, key).await;
                 }
-                "web" => {
+                "http" | "https" => {
                     let url = format!("{}{}", provider.src, path.trim_start_matches(prefix));
                     return self.client.web.get_image(url).await;
                 }

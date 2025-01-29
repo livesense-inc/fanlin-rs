@@ -9,7 +9,6 @@ use std::path::Path;
 #[derive(Clone, Deserialize)]
 pub struct Provider {
     pub path: String,
-    pub kind: String,
     pub src: String,
 }
 

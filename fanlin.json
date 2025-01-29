@@ -16,12 +16,10 @@
   "providers": [
     {
       "path": "foo",
-      "kind": "s3",
       "src": "s3://local-test/images"
     },
     {
       "path": "bar",
-      "kind": "web",
       "src": "http://127.0.0.1:3000/foo"
     }
   ]
