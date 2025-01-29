@@ -10,7 +10,7 @@ impl Client {
     pub fn new(cfg: web::Config) -> Self {
         let client = reqwest::ClientBuilder::new()
             .user_agent(cfg.user_agent)
-            .timeout(Duration::from_secs(cfg.timeout as u64));
+            .timeout(Duration::from_secs(cfg.timeout));
         Self {
             http: client.build().unwrap(),
         }

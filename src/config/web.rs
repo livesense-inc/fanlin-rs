@@ -3,5 +3,5 @@ use serde::Deserialize;
 #[derive(Clone, Debug, Deserialize)]
 pub struct Config {
     pub user_agent: String,
-    pub timeout: usize,
+    pub timeout: u64,
 }
