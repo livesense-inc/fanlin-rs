@@ -74,7 +74,7 @@ async fn generic_handler(
                 eprintln!("failled to get an original image; {:?}", err);
                 return (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    Body::from("server error".to_string()),
+                    Body::from("server error on fetching an image".to_string()),
                 );
             }
         },
@@ -89,7 +89,7 @@ async fn generic_handler(
             eprintln!("failed to process an image; {:?}", err);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Body::from("server error".to_string()),
+                Body::from("server error on processing an image".to_string()),
             )
         },
         |processed| (StatusCode::OK, Body::from(processed)),

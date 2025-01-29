@@ -146,7 +146,7 @@ impl State {
         Ok(buffer.into_inner())
     }
 
-    pub fn process_gif(
+    fn process_gif(
         &self,
         original: Vec<u8>,
         params: query::Query,
