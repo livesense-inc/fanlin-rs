@@ -3,8 +3,8 @@
   "bind_addr": "0.0.0.0",
   "client": {
     "s3": {
-      "aws_endpoint_url": "http://127.0.0.1:4567",
       "aws_region": "ap-northeast-1",
+      "aws_endpoint_url": "http://127.0.0.1:4567",
       "aws_access_key_id": "AAAAAAAAAAAAAAAAAAAA",
       "aws_secret_access_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
     },

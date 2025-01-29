@@ -17,16 +17,20 @@ impl Client {
     }
 
     async fn make_aws_config(cfg: s3::Config) -> aws_config::SdkConfig {
-        if cfg.aws_endpoint_url.len() == 0 {
+        if cfg.aws_endpoint_url.is_none() {
             return aws_config::from_env()
                 .region(aws_config::Region::new(cfg.aws_region))
                 .load()
                 .await;
         }
 
-        let creds = Credentials::from_keys(cfg.aws_access_key_id, cfg.aws_secret_access_key, None);
+        let creds = Credentials::from_keys(
+            cfg.aws_access_key_id.unwrap(),
+            cfg.aws_secret_access_key.unwrap(),
+            None,
+        );
         aws_config::from_env()
-            .endpoint_url(cfg.aws_endpoint_url)
+            .endpoint_url(cfg.aws_endpoint_url.unwrap())
             .region(aws_config::Region::new(cfg.aws_region))
             .credentials_provider(creds)
             .load()
