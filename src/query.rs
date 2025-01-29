@@ -42,4 +42,8 @@ impl Query {
     pub fn use_webp(&self) -> bool {
         self.webp.map_or(false, |v| v)
     }
+
+    pub fn as_is(&self) -> bool {
+        self.dimensions().is_none() && !self.use_webp()
+    }
 }

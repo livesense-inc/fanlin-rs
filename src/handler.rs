@@ -67,6 +67,9 @@ impl State {
         original: Vec<u8>,
         params: query::Query,
     ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+        if params.as_is() {
+            return Ok(original);
+        }
         // https://docs.rs/image/latest/image/struct.ImageReader.html
         let cursor = Cursor::new(original);
         let reader = ImageReader::new(cursor).with_guessed_format()?;
