@@ -3,11 +3,12 @@ use super::infra;
 use super::query;
 use axum::http::uri::Uri;
 use image::{
-    codecs::{jpeg, png, webp},
+    codecs::{gif, jpeg, png, webp},
     imageops::{overlay, FilterType},
-    DynamicImage, ImageBuffer, ImageFormat, ImageReader, Rgba,
+    DynamicImage, Frame, ImageBuffer, ImageFormat, ImageReader, Limits, Rgba, RgbaImage,
 };
-use std::io::Cursor;
+use image::{AnimationDecoder, ImageDecoder};
+use std::{io::Cursor, rc::Rc};
 
 pub struct State {
     providers: Vec<config::Provider>,
@@ -65,6 +66,9 @@ impl State {
                 Some(f) => f,
                 None => return Err(Box::from("unknown format")),
             };
+        }
+        if format == ImageFormat::Gif {
+            return self.process_gif(reader.into_inner().into_inner(), params);
         }
         // https://docs.rs/image/latest/image/enum.DynamicImage.html
         let mut img = reader.decode()?;
@@ -128,5 +132,54 @@ impl State {
             _ => img.write_to(&mut buffer, format)?,
         }
         Ok(buffer.into_inner())
+    }
+
+    pub fn process_gif(
+        &self,
+        original: Vec<u8>,
+        params: query::Query,
+    ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+        let reader = Cursor::new(original);
+        // https://docs.rs/image/latest/image/codecs/gif/index.html
+        let mut decoder = gif::GifDecoder::new(reader)?;
+        decoder.set_limits(Limits::no_limits())?;
+        // https://docs.rs/image/latest/image/struct.Frames.html
+        let frames: Vec<_> = decoder
+            .into_frames()
+            .map(|result| {
+                // https://docs.rs/image/latest/image/struct.Frame.html
+                if result.is_err() {
+                    return Frame::new(RgbaImage::from_pixel(1, 1, Rgba([32, 32, 32, 255])));
+                }
+                let mut img = DynamicImage::ImageRgba8(result.unwrap().into_buffer());
+                if let Some((width, height)) = params.dimensions() {
+                    if width != img.width() || height != img.height() {
+                        if params.cropping() {
+                            img = img.resize_to_fill(width, height, FilterType::Lanczos3);
+                        } else {
+                            img = img.resize(width, height, FilterType::Lanczos3);
+                        }
+                    }
+                    if width > img.width() || height > img.height() {
+                        let (r, g, b) = params.fill_color();
+                        let mut bg = ImageBuffer::from_pixel(width, height, Rgba([r, g, b, 255]));
+                        overlay(
+                            &mut bg,
+                            &img,
+                            (width.abs_diff(img.width()) / 2) as i64,
+                            (height.abs_diff(img.height()) / 2) as i64,
+                        );
+                        img = DynamicImage::ImageRgba8(bg);
+                    }
+                }
+                Frame::new(img.to_rgba8())
+            })
+            .collect();
+        let raw1 = Rc::new(Vec::new());
+        let raw2 = Rc::clone(&raw1);
+        let mut buffer = Cursor::new(Rc::into_inner(raw1).map_or(Vec::new(), |v| v));
+        let mut encoder = gif::GifEncoder::new(&mut buffer);
+        encoder.encode_frames(frames.into_iter())?;
+        Ok(Rc::into_inner(raw2).map_or(Vec::new(), |v| v))
     }
 }
