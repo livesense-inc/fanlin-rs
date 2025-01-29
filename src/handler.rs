@@ -8,7 +8,7 @@ use image::{
     DynamicImage, Frame, ImageBuffer, ImageFormat, ImageReader, Limits, Rgba, RgbaImage,
 };
 use image::{AnimationDecoder, ImageDecoder};
-use std::{io::Cursor, rc::Rc};
+use std::{io::Cursor, path::Path};
 
 pub struct State {
     providers: Vec<config::Provider>,
@@ -24,11 +24,13 @@ impl State {
         &self,
         orig_path: &str,
     ) -> Option<Result<Vec<u8>, Box<dyn std::error::Error>>> {
+        // /foo/bar.jpg -> foo/bar.jpg
         let path = orig_path.trim_start_matches("/");
         if path.len() == 0 {
             return None;
         }
         for provider in self.providers.iter() {
+            // /foo -> foo
             let prefix = provider.path.trim_start_matches("/");
             if !path.starts_with(prefix) {
                 continue;
@@ -37,8 +39,18 @@ impl State {
             match uri.scheme().unwrap().as_str() {
                 "s3" => {
                     let bucket = uri.host().unwrap();
-                    let key = path.trim_start_matches(prefix);
-                    return self.client.s3.get_object(bucket, key).await;
+                    // /images
+                    let path_1 = uri.path();
+                    // foo/bar.jpg -> bar.jpg
+                    let path_2 = path.trim_start_matches(prefix).trim_start_matches("/");
+                    // /images/bar.jpg
+                    if let Some(key_path) = Path::new(path_1).join(path_2).as_path().to_str() {
+                        // images/bar.jpg
+                        let key = key_path.trim_start_matches("/");
+                        return self.client.s3.get_object(bucket, key).await;
+                    } else {
+                        return Some(Err(Box::from("wrong s3 setting")));
+                    }
                 }
                 "http" | "https" => {
                     let url = format!("{}{}", provider.src, path.trim_start_matches(prefix));
@@ -153,11 +165,12 @@ impl State {
                 }
                 let mut img = DynamicImage::ImageRgba8(result.unwrap().into_buffer());
                 if let Some((width, height)) = params.dimensions() {
+                    // https://docs.rs/image/latest/image/enum.DynamicImage.html
                     if width != img.width() || height != img.height() {
                         if params.cropping() {
-                            img = img.resize_to_fill(width, height, FilterType::Lanczos3);
+                            img = img.resize_to_fill(width, height, FilterType::Nearest);
                         } else {
-                            img = img.resize(width, height, FilterType::Lanczos3);
+                            img = img.resize(width, height, FilterType::Nearest);
                         }
                     }
                     if width > img.width() || height > img.height() {
@@ -175,11 +188,13 @@ impl State {
                 Frame::new(img.to_rgba8())
             })
             .collect();
-        let raw1 = Rc::new(Vec::new());
-        let raw2 = Rc::clone(&raw1);
-        let mut buffer = Cursor::new(Rc::into_inner(raw1).map_or(Vec::new(), |v| v));
-        let mut encoder = gif::GifEncoder::new(&mut buffer);
-        encoder.encode_frames(frames.into_iter())?;
-        Ok(Rc::into_inner(raw2).map_or(Vec::new(), |v| v))
+        let mut buffer = Cursor::new(Vec::new());
+        {
+            // https://github.com/image-rs/image/issues/1983
+            let mut encoder = gif::GifEncoder::new_with_speed(&mut buffer, 10);
+            encoder.set_repeat(gif::Repeat::Infinite)?;
+            encoder.encode_frames(frames.into_iter())?;
+        }
+        Ok(buffer.into_inner())
     }
 }
