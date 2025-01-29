@@ -33,10 +33,10 @@ impl Client {
             .await
     }
 
-    pub async fn get_object<'a>(
+    pub async fn get_object(
         &self,
-        bucket: &'static str,
-        key: &'a str,
+        bucket: &String,
+        key: &str,
     ) -> Option<Result<Vec<u8>, Box<dyn std::error::Error>>> {
         // https://docs.rs/aws-sdk-s3/latest/aws_sdk_s3/client/struct.Client.html#method.get_object
         // https://docs.rs/aws-sdk-s3/latest/aws_sdk_s3/primitives/struct.ByteStream.html

@@ -26,8 +26,8 @@ impl State {
         if path.len() == 0 {
             return None;
         }
-        // FIXME: E0521
-        for provider in self.providers.iter() {
+        for i in 0..self.providers.len() {
+            let provider = &self.providers[i];
             let prefix = provider.path.trim_start_matches("/");
             if !path.starts_with(prefix) {
                 continue;
@@ -40,7 +40,7 @@ impl State {
                 }
                 "web" => {
                     let url = format!("{}{}", provider.src, path.trim_start_matches(prefix));
-                    return self.client.web.get_image(&url).await;
+                    return self.client.web.get_image(url).await;
                 }
                 _ => return None,
             }
