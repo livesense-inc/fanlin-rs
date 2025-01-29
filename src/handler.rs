@@ -26,8 +26,7 @@ impl State {
         if path.len() == 0 {
             return None;
         }
-        for i in 0..self.providers.len() {
-            let provider = &self.providers[i];
+        for provider in self.providers.iter() {
             let prefix = provider.path.trim_start_matches("/");
             if !path.starts_with(prefix) {
                 continue;
