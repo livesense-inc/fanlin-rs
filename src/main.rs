@@ -65,6 +65,12 @@ async fn generic_handler(
     State(state): State<Arc<handler::State>>,
 ) -> impl IntoResponse {
     println!("{} {} {}", Local::now(), addr, uri);
+    if params.unsuppoeted_scale_size() {
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Body::new("unprocessable scale size".to_string()),
+        );
+    }
     // https://docs.rs/axum/latest/axum/response/index.html
     let path = uri.path();
     let original = match state.get_image(path).await {
