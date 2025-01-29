@@ -9,6 +9,7 @@ aws-credential-types = { version = "1.2.1", features = ["hardcoded-credentials"]
 aws-sdk-s3 = "1.69.0"
 axum = "0.8.1"
 chrono = "0.4.39"
+clap = { version = "4.5.27", features = ["derive"] }
 image = "0.25.5"
 reqwest = "0.12"
 serde = { version = "1.0.217", features = ["derive"] }

@@ -10,6 +10,7 @@ use axum::{
     Router,
 };
 use chrono::prelude::*;
+use clap::Parser;
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::{net::TcpListener, signal};
 use tower_http::timeout::TimeoutLayer;
@@ -19,9 +20,19 @@ mod handler;
 mod infra;
 mod query;
 
+/// A web server of an image processer
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    /// Path of a setting file
+    #[arg(short, long, default_value_t = String::from("fanlin.json"))]
+    conf: String,
+}
+
 #[tokio::main]
 async fn main() {
-    let cfg = config::Config::new("fanlin.json").unwrap();
+    let args = Args::parse();
+    let cfg = config::Config::new(args.conf).unwrap();
     let listener = TcpListener::bind(format!("{}:{}", &cfg.bind_addr, &cfg.port))
         .await
         .unwrap();
