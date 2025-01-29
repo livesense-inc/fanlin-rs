@@ -65,10 +65,10 @@ async fn generic_handler(
     State(state): State<Arc<handler::State>>,
 ) -> impl IntoResponse {
     println!("{} {} {}", Local::now(), addr, uri);
-    if params.unsuppoeted_scale_size() {
+    if params.unsupported_scale_size() {
         return (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Body::new("unprocessable scale size".to_string()),
+            StatusCode::BAD_REQUEST,
+            Body::new("supported width and height: 20-2000 x 20-1000".to_string()),
         );
     }
     // https://docs.rs/axum/latest/axum/response/index.html

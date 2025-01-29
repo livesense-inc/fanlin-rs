@@ -47,7 +47,7 @@ impl Query {
         self.dimensions().is_none() && !self.use_webp()
     }
 
-    pub fn unsuppoeted_scale_size(&self) -> bool {
+    pub fn unsupported_scale_size(&self) -> bool {
         let w = self.w.map_or(100, |v| v);
         let h = self.h.map_or(100, |v| v);
         w < 20 || w > 2000 || h < 20 || h > 1000
