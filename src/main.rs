@@ -20,7 +20,7 @@ mod handler;
 mod infra;
 mod query;
 
-/// A web server of an image processer
+/// A web server processing and serving images
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
