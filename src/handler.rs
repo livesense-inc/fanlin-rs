@@ -53,7 +53,11 @@ impl State {
                     }
                 }
                 "http" | "https" => {
-                    let url = format!("{}{}", provider.src, path.trim_start_matches(prefix));
+                    let url = format!(
+                        "{}{}",
+                        provider.src.trim_end_matches("/"),
+                        path.trim_start_matches(prefix)
+                    );
                     return self.client.web.get_image(url).await;
                 }
                 _ => return None,
