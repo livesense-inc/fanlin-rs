@@ -44,6 +44,7 @@ Options:
 | `rgb` | fill color | `rgb=32,32,32` |
 | `quality` | encoding quality | `quality=85` |
 | `crop` | cropping | `crop=true` |
+| `avif` | encoding format | `avif=true` |
 | `webp` | encoding format | `webp=true` |
 
 ## Server settings with JSON

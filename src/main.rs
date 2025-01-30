@@ -4,7 +4,7 @@ extern crate tokio;
 use axum::{
     body::Body,
     extract::{ConnectInfo, OriginalUri, Query, State},
-    http::StatusCode,
+    http::{header, StatusCode},
     response::IntoResponse,
     routing::get,
     Router,
@@ -86,6 +86,7 @@ async fn generic_handler(
     if params.unsupported_scale_size() {
         return (
             StatusCode::BAD_REQUEST,
+            [(header::CONTENT_TYPE, "text/plain")],
             Body::new("supported width and height: 20-2000 x 20-1000".to_string()),
         );
     }
@@ -98,12 +99,17 @@ async fn generic_handler(
                 tracing::error!("failled to get an original image; {:?}", err);
                 return (
                     StatusCode::INTERNAL_SERVER_ERROR,
+                    [(header::CONTENT_TYPE, "text/plain")],
                     Body::from("server error on fetching an image".to_string()),
                 );
             }
         },
         None => {
-            return (StatusCode::NOT_FOUND, Body::new("not found".to_string()));
+            return (
+                StatusCode::NOT_FOUND,
+                [(header::CONTENT_TYPE, "text/plain")],
+                Body::new("not found".to_string()),
+            );
         }
     };
     // https://docs.rs/axum/latest/axum/body/struct.Body.html
@@ -113,10 +119,17 @@ async fn generic_handler(
             tracing::error!("failed to process an image; {:?}", err);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
+                [(header::CONTENT_TYPE, "text/plain")],
                 Body::from("server error on processing an image".to_string()),
             )
         },
-        |processed| (StatusCode::OK, Body::from(processed)),
+        |(mime_type, processed)| {
+            (
+                StatusCode::OK,
+                [(header::CONTENT_TYPE, mime_type)],
+                Body::from(processed),
+            )
+        },
     )
 }
 
