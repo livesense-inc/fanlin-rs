@@ -13,8 +13,8 @@ $ make create-s3-bucket
 $ make copy-object SRC=/path/to/local/image.png DEST=images/image.png
 $ cargo run --release
 
-# http://127.0.0.1:3000/foo/image.png?w=1000&h=500
-# http://127.0.0.1:3000/bar/image.png?w=1000&h=500
+# http://127.0.0.1:3000/foo/image.png?w=1618&h=1000
+# http://127.0.0.1:3000/bar/image.png?w=1618&h=1000
 ```
 
 ## Parameters for image processing via query string

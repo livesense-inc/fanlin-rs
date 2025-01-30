@@ -9,11 +9,15 @@ use axum::{
     routing::get,
     Router,
 };
-use chrono::prelude::*;
 use clap::Parser;
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::{net::TcpListener, signal};
-use tower_http::timeout::TimeoutLayer;
+use tower_http::{
+    timeout::TimeoutLayer,
+    trace::{DefaultOnResponse, TraceLayer},
+    LatencyUnit,
+};
+use tracing_subscriber::{filter, prelude::*};
 
 mod config;
 mod handler;
@@ -31,6 +35,10 @@ struct Args {
 
 #[tokio::main]
 async fn main() {
+    let logger = tracing_subscriber::fmt::layer().json();
+    tracing_subscriber::registry()
+        .with(logger.with_filter(filter::LevelFilter::INFO))
+        .init();
     let args = Args::parse();
     let cfg = config::Config::new(args.conf).unwrap();
     let listener = TcpListener::bind(format!("{}:{}", &cfg.bind_addr, &cfg.port))
@@ -38,17 +46,22 @@ async fn main() {
         .unwrap();
     let cli = infra::Client::new(&cfg).await;
     let state = Arc::new(handler::State::new(cfg.providers.clone(), cli));
+    // https://github.com/tower-rs/tower-http/blob/main/examples/axum-key-value-store/src/main.rs
+    // https://docs.rs/tower-http/latest/tower_http/trace/index.html#on_request
+    // https://docs.rs/tower-http/latest/tower_http/trace/struct.DefaultOnResponse.html
     let router = Router::new()
         .route("/ping", get(|| async { "pong" }))
         .fallback(generic_handler)
         .layer(TimeoutLayer::new(Duration::from_secs(10)))
+        .layer(
+            TraceLayer::new_for_http().on_response(
+                DefaultOnResponse::new()
+                    .level(tracing::Level::INFO)
+                    .latency_unit(LatencyUnit::Millis),
+            ),
+        )
         .with_state(state.clone());
-    println!(
-        "{} Serving on {}:{}",
-        Local::now(),
-        &cfg.bind_addr,
-        &cfg.port
-    );
+    tracing::info!("serving on {}:{}", &cfg.bind_addr, &cfg.port);
     axum::serve(
         listener,
         router.into_make_service_with_connect_info::<SocketAddr>(),
@@ -64,7 +77,12 @@ async fn generic_handler(
     Query(params): Query<query::Query>,
     State(state): State<Arc<handler::State>>,
 ) -> impl IntoResponse {
-    println!("{} {} {}", Local::now(), addr, uri);
+    tracing::info!(
+        target: "tower_http::trace::on_request",
+        message = "started processing request",
+        client = ?addr,
+        url = ?uri
+    );
     if params.unsupported_scale_size() {
         return (
             StatusCode::BAD_REQUEST,
@@ -77,7 +95,7 @@ async fn generic_handler(
         Some(result) => match result {
             Ok(img) => img,
             Err(err) => {
-                eprintln!("failled to get an original image; {:?}", err);
+                tracing::error!("failled to get an original image; {:?}", err);
                 return (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     Body::from("server error on fetching an image".to_string()),
@@ -92,7 +110,7 @@ async fn generic_handler(
     // https://github.com/tokio-rs/axum/blob/main/examples/stream-to-file/src/main.rs
     state.process_image(original, params).map_or_else(
         |err| {
-            eprintln!("failed to process an image; {:?}", err);
+            tracing::error!("failed to process an image; {:?}", err);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Body::from("server error on processing an image".to_string()),
@@ -109,7 +127,6 @@ async fn shutdown_signal() {
             .await
             .expect("failed to install Ctrl+C handler");
     };
-
     #[cfg(unix)]
     let terminate = async {
         signal::unix::signal(signal::unix::SignalKind::terminate())
@@ -117,7 +134,6 @@ async fn shutdown_signal() {
             .recv()
             .await;
     };
-
     tokio::select! {
         _ = ctrl_c => {},
         _ = terminate => {},
