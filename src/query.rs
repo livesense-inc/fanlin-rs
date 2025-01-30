@@ -50,6 +50,6 @@ impl Query {
     pub fn unsupported_scale_size(&self) -> bool {
         let w = self.w.map_or(100, |v| v);
         let h = self.h.map_or(100, |v| v);
-        w < 20 || w > 2000 || h < 20 || h > 1000
+        !(20..=2000).contains(&w) || !(20..=1000).contains(&h)
     }
 }

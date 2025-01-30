@@ -26,7 +26,7 @@ impl State {
     ) -> Option<Result<Vec<u8>, Box<dyn std::error::Error>>> {
         // /foo/bar.jpg -> foo/bar.jpg
         let path = orig_path.trim_start_matches("/");
-        if path.len() == 0 {
+        if path.is_empty() {
             return None;
         }
         for provider in self.providers.iter() {
@@ -63,7 +63,7 @@ impl State {
                 _ => return None,
             }
         }
-        return None;
+        None
     }
 
     pub fn process_image(

@@ -48,17 +48,17 @@ impl Client {
             Ok(output) => {
                 let mut buffer = output
                     .content_length
-                    .map_or_else(|| Vec::new(), |size| Vec::with_capacity(size as usize));
+                    .map_or_else(Vec::new, |size| Vec::with_capacity(size as usize));
                 let mut reader = output.body.into_async_read();
                 match tokio::io::copy_buf(&mut reader, &mut buffer).await {
                     Ok(_) => (),
                     Err(err) => return Some(Err(Box::from(err))),
                 }
-                return Some(Ok(buffer));
+                Some(Ok(buffer))
             }
             Err(sdk_err) => match sdk_err.into_service_error() {
                 GetObjectError::NoSuchKey(_) => None,
-                err @ _ => return Some(Err(Box::from(err))),
+                err => Some(Err(Box::from(err))),
             },
         }
     }
