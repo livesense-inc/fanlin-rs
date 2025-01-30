@@ -36,11 +36,11 @@ impl Query {
     }
 
     pub fn cropping(&self) -> bool {
-        self.crop.map_or(false, |v| v)
+        self.crop.is_some_and(|v| v)
     }
 
     pub fn use_webp(&self) -> bool {
-        self.webp.map_or(false, |v| v)
+        self.webp.is_some_and(|v| v)
     }
 
     pub fn as_is(&self) -> bool {
@@ -50,6 +50,6 @@ impl Query {
     pub fn unsupported_scale_size(&self) -> bool {
         let w = self.w.map_or(100, |v| v);
         let h = self.h.map_or(100, |v| v);
-        w < 20 || w > 2000 || h < 20 || h > 1000
+        !(20..=2000).contains(&w) || !(20..=1000).contains(&h)
     }
 }

@@ -1,0 +1,53 @@
+---
+# @see https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions
+# @see https://github.com/actions/virtual-environments
+# @see https://docs.github.com/en/actions/learn-github-actions/contexts
+# @see https://docs.github.com/en/webhooks/webhook-events-and-payloads
+name: Test
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+defaults:
+  run:
+    shell: bash
+jobs:
+  clippy:
+    name: Clippy
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+      with:
+        components: clippy
+    - run: cargo clippy --no-deps --all-targets -- -D warnings
+  rustfmt:
+    name: Rustfmt
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+      with:
+        components: rustfmt
+    - name: Run rustfmt check
+      run: cargo fmt -- --check
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+    - name: Run rustfmt check
+      run: cargo build
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+    - name: Run rustfmt check
+      run: cargo test
