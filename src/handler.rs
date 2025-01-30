@@ -77,15 +77,14 @@ impl State {
         // https://docs.rs/image/latest/image/struct.ImageReader.html
         let cursor = Cursor::new(original);
         let reader = ImageReader::new(cursor).with_guessed_format()?;
-        let format: image::ImageFormat;
-        if params.use_webp() {
-            format = ImageFormat::WebP;
+        let format: image::ImageFormat = if params.use_webp() {
+            ImageFormat::WebP
         } else {
-            format = match reader.format() {
+            match reader.format() {
                 Some(f) => f,
                 None => return Err(Box::from("unknown format")),
-            };
-        }
+            }
+        };
         if format == ImageFormat::Gif {
             return self.process_gif(reader.into_inner().into_inner(), params);
         }
@@ -126,11 +125,7 @@ impl State {
                 img.write_with_encoder(encoder)?;
             }
             ImageFormat::Jpeg => {
-                let q = match params.quality() {
-                    n if n < 1 => 1,
-                    n if n > 100 => 100,
-                    n => n,
-                };
+                let q = params.quality().clamp(1, 100);
                 let mut encoder = jpeg::JpegEncoder::new_with_quality(&mut buffer, q);
                 encoder.encode_image(&img)?;
             }
