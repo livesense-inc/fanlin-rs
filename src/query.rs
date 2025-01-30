@@ -36,11 +36,11 @@ impl Query {
     }
 
     pub fn cropping(&self) -> bool {
-        self.crop.map_or(false, |v| v)
+        self.crop.is_some_and(|v| v)
     }
 
     pub fn use_webp(&self) -> bool {
-        self.webp.map_or(false, |v| v)
+        self.webp.is_some_and(|v| v)
     }
 
     pub fn as_is(&self) -> bool {
