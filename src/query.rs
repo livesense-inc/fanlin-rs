@@ -7,6 +7,7 @@ pub struct Query {
     rgb: Option<String>,
     quality: Option<u8>,
     crop: Option<bool>,
+    avif: Option<bool>,
     webp: Option<bool>,
 }
 
@@ -39,12 +40,16 @@ impl Query {
         self.crop.is_some_and(|v| v)
     }
 
+    pub fn use_avif(&self) -> bool {
+        self.avif.is_some_and(|v| v)
+    }
+
     pub fn use_webp(&self) -> bool {
         self.webp.is_some_and(|v| v)
     }
 
     pub fn as_is(&self) -> bool {
-        self.dimensions().is_none() && !self.use_webp()
+        self.dimensions().is_none() && !self.use_avif() && !self.use_webp()
     }
 
     pub fn unsupported_scale_size(&self) -> bool {

@@ -3,7 +3,7 @@ use super::infra;
 use super::query;
 use axum::http::uri::Uri;
 use image::{
-    codecs::{gif, jpeg, png, webp},
+    codecs::{avif, gif, jpeg, png, webp},
     imageops::{overlay, FilterType},
     DynamicImage, Frame, ImageBuffer, ImageFormat, ImageReader, Limits, Rgba, RgbaImage,
 };
@@ -70,14 +70,13 @@ impl State {
         &self,
         original: Vec<u8>,
         params: query::Query,
-    ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-        if params.as_is() {
-            return Ok(original);
-        }
+    ) -> Result<(&'static str, Vec<u8>), Box<dyn std::error::Error>> {
         // https://docs.rs/image/latest/image/struct.ImageReader.html
         let cursor = Cursor::new(original);
         let reader = ImageReader::new(cursor).with_guessed_format()?;
-        let format: image::ImageFormat = if params.use_webp() {
+        let format: image::ImageFormat = if params.use_avif() {
+            ImageFormat::Avif
+        } else if params.use_webp() {
             ImageFormat::WebP
         } else {
             match reader.format() {
@@ -85,6 +84,9 @@ impl State {
                 None => return Err(Box::from("unknown format")),
             }
         };
+        if params.as_is() {
+            return Ok((format.to_mime_type(), reader.into_inner().into_inner()));
+        }
         if format == ImageFormat::Gif {
             return self.process_gif(reader.into_inner().into_inner(), params);
         }
@@ -129,30 +131,29 @@ impl State {
                 let mut encoder = jpeg::JpegEncoder::new_with_quality(&mut buffer, q);
                 encoder.encode_image(&img)?;
             }
+            ImageFormat::Avif => {
+                // https://docs.rs/image/latest/image/codecs/avif/struct.AvifEncoder.html
+                let q = params.quality().clamp(1, 100);
+                let encoder = avif::AvifEncoder::new_with_speed_quality(&mut buffer, 10, q)
+                    .with_colorspace(avif::ColorSpace::Srgb);
+                img.write_with_encoder(encoder)?;
+            }
             ImageFormat::WebP => {
                 // https://docs.rs/image/latest/image/codecs/webp/struct.WebPEncoder.html
-                match params.quality() {
-                    100 => {
-                        let encoder = webp::WebPEncoder::new_lossless(&mut buffer);
-                        img.write_with_encoder(encoder)?;
-                    }
-                    _ => {
-                        // TODO: support lossy encoding
-                        let encoder = webp::WebPEncoder::new_lossless(&mut buffer);
-                        img.write_with_encoder(encoder)?;
-                    }
-                };
+                // TODO: support lossy encoding
+                let encoder = webp::WebPEncoder::new_lossless(&mut buffer);
+                img.write_with_encoder(encoder)?;
             }
             _ => img.write_to(&mut buffer, format)?,
         }
-        Ok(buffer.into_inner())
+        Ok((format.to_mime_type(), buffer.into_inner()))
     }
 
     fn process_gif(
         &self,
         original: Vec<u8>,
         params: query::Query,
-    ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    ) -> Result<(&'static str, Vec<u8>), Box<dyn std::error::Error>> {
         let reader = Cursor::new(original);
         // https://docs.rs/image/latest/image/codecs/gif/index.html
         let mut decoder = gif::GifDecoder::new(reader)?;
@@ -197,6 +198,6 @@ impl State {
             encoder.set_repeat(gif::Repeat::Infinite)?;
             encoder.encode_frames(frames.into_iter())?;
         }
-        Ok(buffer.into_inner())
+        Ok((ImageFormat::Gif.to_mime_type(), buffer.into_inner()))
     }
 }
