@@ -47,6 +47,8 @@ Options:
 | `avif` | encoding format | `avif=true` |
 | `webp` | encoding format | `webp=true` |
 
+The aspect ratio is preserved at resizing. Also GIF animation too as well.
+
 ## Server settings with JSON
 
 Please see an example file named with `fanlin.json` in the root directory.
