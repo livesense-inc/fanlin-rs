@@ -4,6 +4,7 @@ use aws_credential_types::Credentials;
 use aws_sdk_s3;
 use aws_sdk_s3::operation::get_object::GetObjectError;
 
+#[derive(Clone, Debug)]
 pub struct Client {
     s3: aws_sdk_s3::Client,
 }

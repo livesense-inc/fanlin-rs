@@ -2,6 +2,7 @@ use super::super::config::web;
 use reqwest::StatusCode;
 use std::time::Duration;
 
+#[derive(Clone, Debug)]
 pub struct Client {
     http: reqwest::Client,
 }

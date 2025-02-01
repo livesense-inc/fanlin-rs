@@ -3,6 +3,7 @@ pub mod web;
 
 use super::config;
 
+#[derive(Clone, Debug)]
 pub struct Client {
     pub s3: s3::Client,
     pub web: web::Client,
