@@ -44,7 +44,7 @@ async fn main() {
     let listen_addr = format!("{}:{}", &cfg.bind_addr, &cfg.port);
     let listener = TcpListener::bind(&listen_addr)
         .await
-        .expect("failed to bind {listen_addr}");
+        .expect("failed to bind address");
     let cli = infra::Client::new(&cfg).await;
     let state = handler::State::new(cfg.providers.clone(), cli);
     // https://github.com/tower-rs/tower-http/blob/main/examples/axum-key-value-store/src/main.rs
