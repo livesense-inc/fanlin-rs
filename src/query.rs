@@ -91,11 +91,11 @@ fn test_query() {
                 assert_eq!(got.dimensions(), None);
                 assert_eq!(got.fill_color(), (32, 32, 32));
                 assert_eq!(got.quality(), 85);
-                assert_eq!(got.cropping(), false);
-                assert_eq!(got.use_avif(), false);
-                assert_eq!(got.use_webp(), false);
-                assert_eq!(got.as_is(), true);
-                assert_eq!(got.unsupported_scale_size(), false);
+                assert!(!got.cropping());
+                assert!(!got.use_avif());
+                assert!(!got.use_webp());
+                assert!(got.as_is());
+                assert!(!got.unsupported_scale_size());
             },
         },
         Case {
@@ -124,8 +124,8 @@ fn test_query() {
             },
             assert: |got| {
                 assert_eq!(got.dimensions(), Some((2000, 1000)));
-                assert_eq!(got.as_is(), false);
-                assert_eq!(got.unsupported_scale_size(), false);
+                assert!(!got.as_is());
+                assert!(!got.unsupported_scale_size());
             },
         },
         Case {
@@ -137,8 +137,8 @@ fn test_query() {
             },
             assert: |got| {
                 assert_eq!(got.dimensions(), None);
-                assert_eq!(got.as_is(), true);
-                assert_eq!(got.unsupported_scale_size(), false);
+                assert!(got.as_is());
+                assert!(!got.unsupported_scale_size());
             },
         },
         Case {
@@ -151,8 +151,8 @@ fn test_query() {
             },
             assert: |got| {
                 assert_eq!(got.dimensions(), Some((2001, 1001)));
-                assert_eq!(got.as_is(), false);
-                assert_eq!(got.unsupported_scale_size(), true);
+                assert!(!got.as_is());
+                assert!(got.unsupported_scale_size());
             },
         },
         Case {
@@ -172,7 +172,7 @@ fn test_query() {
             },
             assert: |got| {
                 assert_eq!(got.fill_color(), (255, 255, 255));
-                assert_eq!(got.as_is(), true);
+                assert!(got.as_is());
             },
         },
         Case {
@@ -184,7 +184,7 @@ fn test_query() {
             },
             assert: |got| {
                 assert_eq!(got.fill_color(), (255, 255, 255));
-                assert_eq!(got.as_is(), true);
+                assert!(got.as_is());
             },
         },
         Case {
@@ -196,7 +196,7 @@ fn test_query() {
             },
             assert: |got| {
                 assert_eq!(got.fill_color(), (32, 32, 32));
-                assert_eq!(got.as_is(), true);
+                assert!(got.as_is());
             },
         },
         Case {
@@ -208,7 +208,7 @@ fn test_query() {
             },
             assert: |got| {
                 assert_eq!(got.fill_color(), (32, 32, 32));
-                assert_eq!(got.as_is(), true);
+                assert!(got.as_is());
             },
         },
         Case {
@@ -220,7 +220,7 @@ fn test_query() {
             },
             assert: |got| {
                 assert_eq!(got.quality(), 50);
-                assert_eq!(got.as_is(), true);
+                assert!(got.as_is());
             },
         },
         Case {
@@ -239,8 +239,8 @@ fn test_query() {
                 ..Default::default()
             },
             assert: |got| {
-                assert_eq!(got.cropping(), true);
-                assert_eq!(got.as_is(), true);
+                assert!(got.cropping());
+                assert!(got.as_is());
             },
         },
         Case {
@@ -259,8 +259,8 @@ fn test_query() {
                 ..Default::default()
             },
             assert: |got| {
-                assert_eq!(got.use_avif(), true);
-                assert_eq!(got.as_is(), false);
+                assert!(got.use_avif());
+                assert!(!got.as_is());
             },
         },
         Case {
@@ -279,8 +279,8 @@ fn test_query() {
                 ..Default::default()
             },
             assert: |got| {
-                assert_eq!(got.use_webp(), true);
-                assert_eq!(got.as_is(), false);
+                assert!(got.use_webp());
+                assert!(!got.as_is());
             },
         },
         Case {
