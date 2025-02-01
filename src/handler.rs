@@ -8,6 +8,7 @@ use image::{
     DynamicImage, Frame, ImageBuffer, ImageFormat, ImageReader, Limits, Rgba, RgbaImage,
 };
 use image::{AnimationDecoder, ImageDecoder};
+use percent_encoding::percent_decode_str;
 use std::{io::Cursor, path::Path};
 
 #[derive(Clone, Debug)]
@@ -197,10 +198,11 @@ fn build_bucket_and_object_key(
     req_path: &str,
 ) -> Result<(String, String), Box<dyn std::error::Error>> {
     let bucket = src_uri.host().ok_or("s3 client src is wrong")?;
+    let decoded_path = percent_decode_str(req_path).decode_utf8()?;
     // /images
     let path_1 = src_uri.path();
     // foo/bar.jpg -> bar.jpg
-    let path_2 = req_path
+    let path_2 = decoded_path
         .trim_start_matches(req_prefix)
         .trim_start_matches("/");
     // /images/bar.jpg
@@ -278,7 +280,7 @@ fn test_build_bucket_and_object_key() {
             req_prefix: "foo",
             req_path: "foo/%E7%8A%AC.gif",
             error: false,
-            want: ("local-test", "images/%E7%8A%AC.gif"),
+            want: ("local-test", "images/犬.gif"),
         },
         Case {
             src: "s3://local-test/images/animals",

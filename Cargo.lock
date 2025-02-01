@@ -1076,6 +1076,7 @@ dependencies = [
  "axum",
  "clap",
  "image",
+ "percent-encoding",
  "reqwest",
  "serde",
  "serde_json",
