@@ -41,7 +41,7 @@ impl State {
                 "s3" => {
                     let (bucket, key) = match build_bucket_and_object_key(uri, prefix, path) {
                         Ok((bucket, key)) => (bucket, key),
-                        Err(err) => return Some(Err(Box::from(err))),
+                        Err(err) => return Some(Err(err)),
                     };
                     return self.client.s3.get_object(bucket, key).await;
                 }
