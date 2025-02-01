@@ -8,6 +8,7 @@ use image::{
     DynamicImage, Frame, ImageBuffer, ImageFormat, ImageReader, Limits, Rgba, RgbaImage,
 };
 use image::{AnimationDecoder, ImageDecoder};
+use percent_encoding::percent_decode_str;
 use std::{io::Cursor, path::Path};
 
 #[derive(Clone, Debug)]
@@ -39,26 +40,14 @@ impl State {
             let uri = &provider.src.parse::<Uri>().unwrap();
             match uri.scheme().unwrap().as_str() {
                 "s3" => {
-                    let bucket = uri.host().unwrap();
-                    // /images
-                    let path_1 = uri.path();
-                    // foo/bar.jpg -> bar.jpg
-                    let path_2 = path.trim_start_matches(prefix).trim_start_matches("/");
-                    // /images/bar.jpg
-                    if let Some(key_path) = Path::new(path_1).join(path_2).as_path().to_str() {
-                        // images/bar.jpg
-                        let key = key_path.trim_start_matches("/");
-                        return self.client.s3.get_object(bucket, key).await;
-                    } else {
-                        return Some(Err(Box::from("wrong s3 setting")));
-                    }
+                    let (bucket, key) = match build_bucket_and_object_key(uri, prefix, path) {
+                        Ok((bucket, key)) => (bucket, key),
+                        Err(err) => return Some(Err(err)),
+                    };
+                    return self.client.s3.get_object(bucket, key).await;
                 }
                 "http" | "https" => {
-                    let url = format!(
-                        "{}{}",
-                        provider.src.trim_end_matches("/"),
-                        path.trim_start_matches(prefix)
-                    );
+                    let url = build_url(uri, prefix, path);
                     return self.client.web.get(url).await;
                 }
                 _ => return None,
@@ -200,5 +189,179 @@ impl State {
             encoder.encode_frames(frames.into_iter())?;
         }
         Ok((ImageFormat::Gif.to_mime_type(), buffer.into_inner()))
+    }
+}
+
+fn build_bucket_and_object_key(
+    src_uri: &Uri,
+    req_prefix: &str,
+    req_path: &str,
+) -> Result<(String, String), Box<dyn std::error::Error>> {
+    let bucket = src_uri.host().ok_or("s3 client src is wrong")?;
+    let decoded_path = percent_decode_str(req_path).decode_utf8()?;
+    // /images
+    let path_1 = src_uri.path();
+    // foo/bar.jpg -> bar.jpg
+    let path_2 = decoded_path
+        .trim_start_matches(req_prefix)
+        .trim_start_matches("/");
+    // /images/bar.jpg
+    if let Some(key_path) = Path::new(path_1).join(path_2).as_path().to_str() {
+        // images/bar.jpg
+        Ok((
+            bucket.to_string(),
+            key_path.trim_start_matches("/").to_string(),
+        ))
+    } else {
+        Err(Box::from(
+            "failed to build bucket and object key for s3 from request",
+        ))
+    }
+}
+
+fn build_url(src_uri: &Uri, req_prefix: &str, req_path: &str) -> String {
+    let prefix = req_prefix.trim_start_matches("/").trim_end_matches("/");
+    let path = req_path.trim_start_matches("/").trim_end_matches("/");
+    format!(
+        "{}/{}",
+        src_uri.to_string().trim_end_matches("/"),
+        path.trim_start_matches(prefix).trim_start_matches("/"),
+    )
+}
+
+#[test]
+fn test_build_bucket_and_object_key() {
+    #[derive(Debug)]
+    struct Case {
+        src: &'static str,
+        req_prefix: &'static str,
+        req_path: &'static str,
+        error: bool,
+        want: (&'static str, &'static str),
+    }
+    let cases = [
+        Case {
+            src: "s3://local-test/images",
+            req_prefix: "foo",
+            req_path: "foo/dog.gif",
+            error: false,
+            want: ("local-test", "images/dog.gif"),
+        },
+        Case {
+            src: "s3://local-test/images/",
+            req_prefix: "/foo/",
+            req_path: "/foo/dog.gif",
+            error: false,
+            want: ("local-test", "images/dog.gif"),
+        },
+        Case {
+            src: "s3://local-test/images",
+            req_prefix: "/foo",
+            req_path: "/foo/dog.gif",
+            error: false,
+            want: ("local-test", "images/dog.gif"),
+        },
+        Case {
+            src: "s3://local-test/images/",
+            req_prefix: "foo/",
+            req_path: "foo/dog.gif",
+            error: false,
+            want: ("local-test", "images/dog.gif"),
+        },
+        Case {
+            src: "s3://local-test/images",
+            req_prefix: "foo",
+            req_path: "foo/犬.gif",
+            error: false,
+            want: ("local-test", "images/犬.gif"),
+        },
+        Case {
+            src: "s3://local-test/images",
+            req_prefix: "foo",
+            req_path: "foo/%E7%8A%AC.gif",
+            error: false,
+            want: ("local-test", "images/犬.gif"),
+        },
+        Case {
+            src: "s3://local-test/images/animals",
+            req_prefix: "foo",
+            req_path: "foo/bar/dog.gif",
+            error: false,
+            want: ("local-test", "images/animals/bar/dog.gif"),
+        },
+    ];
+    for c in cases {
+        let uri = c.src.parse::<Uri>().expect("case bug");
+        match build_bucket_and_object_key(&uri, c.req_prefix, c.req_path) {
+            Ok((got_bucket, got_key)) => {
+                assert!(!c.error, "case: {c:?}");
+                let (want_bucket, want_key) = c.want;
+                assert_eq!(got_bucket, want_bucket);
+                assert_eq!(got_key, want_key);
+            }
+            Err(err) => {
+                assert!(c.error, "case: {c:?}, error: {err}");
+            }
+        }
+    }
+}
+
+#[test]
+fn test_buid_url() {
+    #[derive(Debug)]
+    struct Case {
+        src: &'static str,
+        req_prefix: &'static str,
+        req_path: &'static str,
+        want: &'static str,
+    }
+    let cases = [
+        Case {
+            src: "http://127.0.0.1/images",
+            req_prefix: "foo",
+            req_path: "foo/dog.gif",
+            want: "http://127.0.0.1/images/dog.gif",
+        },
+        Case {
+            src: "http://127.0.0.1/images/",
+            req_prefix: "/foo/",
+            req_path: "/foo/dog.gif",
+            want: "http://127.0.0.1/images/dog.gif",
+        },
+        Case {
+            src: "http://127.0.0.1/images",
+            req_prefix: "/foo",
+            req_path: "/foo/dog.gif",
+            want: "http://127.0.0.1/images/dog.gif",
+        },
+        Case {
+            src: "http://127.0.0.1/images/",
+            req_prefix: "foo/",
+            req_path: "foo/dog.gif",
+            want: "http://127.0.0.1/images/dog.gif",
+        },
+        Case {
+            src: "http://127.0.0.1/images",
+            req_prefix: "foo",
+            req_path: "foo/犬.gif",
+            want: "http://127.0.0.1/images/犬.gif",
+        },
+        Case {
+            src: "http://127.0.0.1/images",
+            req_prefix: "foo",
+            req_path: "foo/%E7%8A%AC.gif",
+            want: "http://127.0.0.1/images/%E7%8A%AC.gif",
+        },
+        Case {
+            src: "http://127.0.0.1/images/animals",
+            req_prefix: "foo",
+            req_path: "foo/bar/dog.gif",
+            want: "http://127.0.0.1/images/animals/bar/dog.gif",
+        },
+    ];
+    for c in cases {
+        let uri = c.src.parse::<Uri>().expect("case bug");
+        let got = build_url(&uri, c.req_prefix, c.req_path);
+        assert_eq!(got, c.want, "case: {c:?}");
     }
 }
