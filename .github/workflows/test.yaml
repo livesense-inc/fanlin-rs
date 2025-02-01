@@ -28,6 +28,7 @@ jobs:
       run: cargo clippy --no-deps --all-targets -- -D warnings
   rustfmt:
     name: Rustfmt
+    timeout-minutes: 5
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -38,6 +39,7 @@ jobs:
       run: cargo fmt -- --check
   build:
     name: Build
+    timeout-minutes: 5
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -46,6 +48,7 @@ jobs:
       run: cargo build
   test:
     name: Test
+    timeout-minutes: 5
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
