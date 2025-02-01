@@ -13,7 +13,7 @@ impl Client {
             .user_agent(cfg.user_agent)
             .timeout(Duration::from_secs(cfg.timeout));
         Self {
-            http: client.build().unwrap(),
+            http: client.build().expect("failed to build http client"),
         }
     }
 

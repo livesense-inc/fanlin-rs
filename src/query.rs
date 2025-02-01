@@ -293,7 +293,10 @@ fn test_query() {
         },
     ];
     for c in cases {
-        let uri = c.query_string.parse::<axum::http::Uri>().unwrap();
+        let uri = c
+            .query_string
+            .parse::<axum::http::Uri>()
+            .expect("failed to parse a string as an URI");
         match axum::extract::Query::try_from_uri(&uri) {
             Ok(axum::extract::Query(got)) => {
                 assert!(!c.error, "case: {}", c.query_string);
