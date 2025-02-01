@@ -39,10 +39,11 @@ impl State {
             let uri = &provider.src.parse::<Uri>().unwrap();
             match uri.scheme().unwrap().as_str() {
                 "s3" => {
-                    return match build_bucket_and_object_key(uri, prefix, path) {
-                        Ok((bucket, key)) => self.client.s3.get_object(bucket, key).await,
-                        Err(err) => Some(Err(err)),
-                    }
+                    let (bucket, key) = match build_bucket_and_object_key(uri, prefix, path) {
+                        Ok((bucket, key)) => (bucket, key),
+                        Err(err) => return Some(Err(Box::from(err))),
+                    };
+                    return self.client.s3.get_object(bucket, key).await;
                 }
                 "http" | "https" => {
                     let url = build_url(uri, prefix, path);
@@ -217,10 +218,12 @@ fn build_bucket_and_object_key(
 }
 
 fn build_url(src_uri: &Uri, req_prefix: &str, req_path: &str) -> String {
+    let prefix = req_prefix.trim_start_matches("/").trim_end_matches("/");
+    let path = req_path.trim_start_matches("/").trim_end_matches("/");
     format!(
-        "{}{}",
+        "{}/{}",
         src_uri.to_string().trim_end_matches("/"),
-        req_path.trim_start_matches(req_prefix),
+        path.trim_start_matches(prefix).trim_start_matches("/"),
     )
 }
 
@@ -243,15 +246,50 @@ fn test_build_bucket_and_object_key() {
             want: ("local-test", "images/dog.gif"),
         },
         Case {
-            src: "",
-            req_prefix: "",
-            req_path: "",
-            error: true,
-            want: ("", ""),
+            src: "s3://local-test/images/",
+            req_prefix: "/foo/",
+            req_path: "/foo/dog.gif",
+            error: false,
+            want: ("local-test", "images/dog.gif"),
+        },
+        Case {
+            src: "s3://local-test/images",
+            req_prefix: "/foo",
+            req_path: "/foo/dog.gif",
+            error: false,
+            want: ("local-test", "images/dog.gif"),
+        },
+        Case {
+            src: "s3://local-test/images/",
+            req_prefix: "foo/",
+            req_path: "foo/dog.gif",
+            error: false,
+            want: ("local-test", "images/dog.gif"),
+        },
+        Case {
+            src: "s3://local-test/images",
+            req_prefix: "foo",
+            req_path: "foo/犬.gif",
+            error: false,
+            want: ("local-test", "images/犬.gif"),
+        },
+        Case {
+            src: "s3://local-test/images",
+            req_prefix: "foo",
+            req_path: "foo/%E7%8A%AC.gif",
+            error: false,
+            want: ("local-test", "images/%E7%8A%AC.gif"),
+        },
+        Case {
+            src: "s3://local-test/images/animals",
+            req_prefix: "foo",
+            req_path: "foo/bar/dog.gif",
+            error: false,
+            want: ("local-test", "images/animals/bar/dog.gif"),
         },
     ];
     for c in cases {
-        let uri = c.src.parse::<Uri>().unwrap();
+        let uri = c.src.parse::<Uri>().expect("case bug");
         match build_bucket_and_object_key(&uri, c.req_prefix, c.req_path) {
             Ok((got_bucket, got_key)) => {
                 assert!(!c.error, "case: {c:?}");
@@ -283,14 +321,44 @@ fn test_buid_url() {
             want: "http://127.0.0.1/images/dog.gif",
         },
         Case {
-            src: "",
-            req_prefix: "",
-            req_path: "",
-            want: "",
+            src: "http://127.0.0.1/images/",
+            req_prefix: "/foo/",
+            req_path: "/foo/dog.gif",
+            want: "http://127.0.0.1/images/dog.gif",
+        },
+        Case {
+            src: "http://127.0.0.1/images",
+            req_prefix: "/foo",
+            req_path: "/foo/dog.gif",
+            want: "http://127.0.0.1/images/dog.gif",
+        },
+        Case {
+            src: "http://127.0.0.1/images/",
+            req_prefix: "foo/",
+            req_path: "foo/dog.gif",
+            want: "http://127.0.0.1/images/dog.gif",
+        },
+        Case {
+            src: "http://127.0.0.1/images",
+            req_prefix: "foo",
+            req_path: "foo/犬.gif",
+            want: "http://127.0.0.1/images/犬.gif",
+        },
+        Case {
+            src: "http://127.0.0.1/images",
+            req_prefix: "foo",
+            req_path: "foo/%E7%8A%AC.gif",
+            want: "http://127.0.0.1/images/%E7%8A%AC.gif",
+        },
+        Case {
+            src: "http://127.0.0.1/images/animals",
+            req_prefix: "foo",
+            req_path: "foo/bar/dog.gif",
+            want: "http://127.0.0.1/images/animals/bar/dog.gif",
         },
     ];
     for c in cases {
-        let uri = c.src.parse::<Uri>().unwrap();
+        let uri = c.src.parse::<Uri>().expect("case bug");
         let got = build_url(&uri, c.req_prefix, c.req_path);
         assert_eq!(got, c.want, "case: {c:?}");
     }

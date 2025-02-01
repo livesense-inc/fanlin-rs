@@ -72,6 +72,7 @@ async fn main() {
     .expect("failed to start server");
 }
 
+#[axum::debug_handler]
 async fn generic_handler(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     OriginalUri(uri): OriginalUri,
