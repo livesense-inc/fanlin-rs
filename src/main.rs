@@ -40,10 +40,11 @@ async fn main() {
         .with(logger.with_filter(filter::LevelFilter::INFO))
         .init();
     let args = Args::parse();
-    let cfg = config::Config::from_file(args.conf).unwrap();
-    let listener = TcpListener::bind(format!("{}:{}", &cfg.bind_addr, &cfg.port))
+    let cfg = config::Config::from_file(args.conf).expect("failed to read a config file");
+    let listen_addr = format!("{}:{}", &cfg.bind_addr, &cfg.port);
+    let listener = TcpListener::bind(&listen_addr)
         .await
-        .unwrap();
+        .expect("failed to bind address");
     let cli = infra::Client::new(&cfg).await;
     let state = handler::State::new(cfg.providers.clone(), cli);
     // https://github.com/tower-rs/tower-http/blob/main/examples/axum-key-value-store/src/main.rs
@@ -61,14 +62,14 @@ async fn main() {
             ),
         )
         .with_state(state);
-    tracing::info!("serving on {}:{}", &cfg.bind_addr, &cfg.port);
+    tracing::info!("serving on {listen_addr}");
     axum::serve(
         listener,
         router.into_make_service_with_connect_info::<SocketAddr>(),
     )
     .with_graceful_shutdown(shutdown_signal())
     .await
-    .unwrap();
+    .expect("failed to start server");
 }
 
 async fn generic_handler(
