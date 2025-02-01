@@ -40,7 +40,7 @@ async fn main() {
         .with(logger.with_filter(filter::LevelFilter::INFO))
         .init();
     let args = Args::parse();
-    let cfg = config::Config::new(args.conf).unwrap();
+    let cfg = config::Config::from_file(args.conf).unwrap();
     let listener = TcpListener::bind(format!("{}:{}", &cfg.bind_addr, &cfg.port))
         .await
         .unwrap();
