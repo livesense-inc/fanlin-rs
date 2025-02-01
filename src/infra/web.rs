@@ -17,10 +17,7 @@ impl Client {
         }
     }
 
-    pub async fn get_image(
-        &self,
-        url: String,
-    ) -> Option<Result<Vec<u8>, Box<dyn std::error::Error>>> {
+    pub async fn get(&self, url: String) -> Option<Result<Vec<u8>, Box<dyn std::error::Error>>> {
         // https://docs.rs/reqwest/latest/reqwest/struct.Client.html
         match self.http.get(&url).send().await {
             // https://docs.rs/reqwest/latest/reqwest/struct.Response.html

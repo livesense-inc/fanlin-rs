@@ -59,7 +59,7 @@ impl State {
                         provider.src.trim_end_matches("/"),
                         path.trim_start_matches(prefix)
                     );
-                    return self.client.web.get_image(url).await;
+                    return self.client.web.get(url).await;
                 }
                 _ => return None,
             }
