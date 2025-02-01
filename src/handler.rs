@@ -39,32 +39,53 @@ impl State {
             let uri = &provider.src.parse::<Uri>().unwrap();
             match uri.scheme().unwrap().as_str() {
                 "s3" => {
-                    let bucket = uri.host().unwrap();
-                    // /images
-                    let path_1 = uri.path();
-                    // foo/bar.jpg -> bar.jpg
-                    let path_2 = path.trim_start_matches(prefix).trim_start_matches("/");
-                    // /images/bar.jpg
-                    if let Some(key_path) = Path::new(path_1).join(path_2).as_path().to_str() {
-                        // images/bar.jpg
-                        let key = key_path.trim_start_matches("/");
-                        return self.client.s3.get_object(bucket, key).await;
-                    } else {
-                        return Some(Err(Box::from("wrong s3 setting")));
+                    return match Self::build_bucket_and_object_key(uri, prefix, path) {
+                        Ok((bucket, key)) => self.client.s3.get_object(bucket, key).await,
+                        Err(err) => Some(Err(err)),
                     }
                 }
                 "http" | "https" => {
-                    let url = format!(
-                        "{}{}",
-                        provider.src.trim_end_matches("/"),
-                        path.trim_start_matches(prefix)
-                    );
+                    let url = Self::build_url(uri, prefix, path);
                     return self.client.web.get(url).await;
                 }
                 _ => return None,
             }
         }
         None
+    }
+
+    fn build_bucket_and_object_key(
+        src_uri: &Uri,
+        req_prefix: &str,
+        req_path: &str,
+    ) -> Result<(String, String), Box<dyn std::error::Error>> {
+        let bucket = src_uri.host().ok_or("s3 client src is wrong")?;
+        // /images
+        let path_1 = src_uri.path();
+        // foo/bar.jpg -> bar.jpg
+        let path_2 = req_path
+            .trim_start_matches(req_prefix)
+            .trim_start_matches("/");
+        // /images/bar.jpg
+        if let Some(key_path) = Path::new(path_1).join(path_2).as_path().to_str() {
+            // images/bar.jpg
+            Ok((
+                bucket.to_string(),
+                key_path.trim_start_matches("/").to_string(),
+            ))
+        } else {
+            Err(Box::from(
+                "failed to build bucket and object key for s3 from request",
+            ))
+        }
+    }
+
+    fn build_url(src_uri: &Uri, req_prefix: &str, req_path: &str) -> String {
+        format!(
+            "{}{}",
+            src_uri.to_string().trim_end_matches("/"),
+            req_path.trim_start_matches(req_prefix),
+        )
     }
 
     pub fn process_image(
@@ -200,5 +221,47 @@ impl State {
             encoder.encode_frames(frames.into_iter())?;
         }
         Ok((ImageFormat::Gif.to_mime_type(), buffer.into_inner()))
+    }
+}
+
+#[test]
+fn test_build_bucket_and_object_key() {
+    #[derive(Debug)]
+    struct Case {
+        src: &'static str,
+        req_prefix: &'static str,
+        req_path: &'static str,
+        error: bool,
+        want: (&'static str, &'static str),
+    }
+    let cases = [
+        Case {
+            src: "s3://local-test/images",
+            req_prefix: "foo",
+            req_path: "foo/dog.gif",
+            error: false,
+            want: ("local-test", "images/dog.gif"),
+        },
+        Case {
+            src: "",
+            req_prefix: "",
+            req_path: "",
+            error: true,
+            want: ("", ""),
+        },
+    ];
+    for c in cases {
+        let uri = c.src.parse::<Uri>().unwrap();
+        match State::build_bucket_and_object_key(&uri, c.req_prefix, c.req_path) {
+            Ok((got_bucket, got_key)) => {
+                assert!(!c.error, "case: {c:?}");
+                let (want_bucket, want_key) = c.want;
+                assert_eq!(got_bucket, want_bucket);
+                assert_eq!(got_key, want_key);
+            }
+            Err(err) => {
+                assert!(c.error, "case: {c:?}, error: {err}");
+            }
+        }
     }
 }
