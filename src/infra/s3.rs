@@ -26,12 +26,13 @@ impl Client {
         }
 
         let creds = Credentials::from_keys(
-            cfg.aws_access_key_id.unwrap(),
-            cfg.aws_secret_access_key.unwrap(),
+            cfg.aws_access_key_id.expect("aws_access_key_id required"),
+            cfg.aws_secret_access_key
+                .expect("aws_secret_access_key required"),
             None,
         );
         aws_config::from_env()
-            .endpoint_url(cfg.aws_endpoint_url.unwrap())
+            .endpoint_url(cfg.aws_endpoint_url.expect("aws_endpoint_url required"))
             .region(aws_config::Region::new(cfg.aws_region))
             .credentials_provider(creds)
             .load()
