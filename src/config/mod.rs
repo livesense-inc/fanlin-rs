@@ -6,19 +6,19 @@ use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
 
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct Provider {
     pub path: String,
     pub src: String,
 }
 
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct Client {
     pub s3: s3::Config,
     pub web: web::Config,
 }
 
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct Config {
     pub port: usize,
     pub bind_addr: String,

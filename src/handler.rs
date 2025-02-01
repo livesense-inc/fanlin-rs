@@ -10,6 +10,7 @@ use image::{
 use image::{AnimationDecoder, ImageDecoder};
 use std::{io::Cursor, path::Path};
 
+#[derive(Clone, Debug)]
 pub struct State {
     providers: Vec<config::Provider>,
     client: infra::Client,

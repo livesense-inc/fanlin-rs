@@ -10,7 +10,7 @@ use axum::{
     Router,
 };
 use clap::Parser;
-use std::{net::SocketAddr, sync::Arc, time::Duration};
+use std::{net::SocketAddr, time::Duration};
 use tokio::{net::TcpListener, signal};
 use tower_http::{
     timeout::TimeoutLayer,
@@ -45,7 +45,7 @@ async fn main() {
         .await
         .unwrap();
     let cli = infra::Client::new(&cfg).await;
-    let state = Arc::new(handler::State::new(cfg.providers.clone(), cli));
+    let state = handler::State::new(cfg.providers.clone(), cli);
     // https://github.com/tower-rs/tower-http/blob/main/examples/axum-key-value-store/src/main.rs
     // https://docs.rs/tower-http/latest/tower_http/trace/index.html#on_request
     // https://docs.rs/tower-http/latest/tower_http/trace/struct.DefaultOnResponse.html
@@ -60,7 +60,7 @@ async fn main() {
                     .latency_unit(LatencyUnit::Millis),
             ),
         )
-        .with_state(state.clone());
+        .with_state(state);
     tracing::info!("serving on {}:{}", &cfg.bind_addr, &cfg.port);
     axum::serve(
         listener,
@@ -75,7 +75,7 @@ async fn generic_handler(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     OriginalUri(uri): OriginalUri,
     Query(params): Query<query::Query>,
-    State(state): State<Arc<handler::State>>,
+    State(state): State<handler::State>,
 ) -> impl IntoResponse {
     tracing::info!(
         target: "tower_http::trace::on_request",
