@@ -22,3 +22,9 @@ list-s3-bucket:
 
 copy-object:
 	@${AWS_CMD} s3 cp ${SRC} s3://${AWS_S3_BUCKET_NAME}/${DEST}
+
+build-image:
+	@docker build -t fanlin-rs:latest .
+
+run-image:
+	@cat fanlin.json | jq -c . | xargs -0 docker run --rm --name=fanlin-rs -p 3000:3000 fanlin-rs -j

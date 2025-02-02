@@ -11,6 +11,10 @@ this repository is aimed to be yet another [fanlin](https://github.com/livesense
 
 ## Development
 
+* https://rustup.rs/
+* https://docs.docker.com/manuals/
+* https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
+
 ```
 $ docker compose up
 $ make create-s3-bucket
@@ -24,13 +28,16 @@ $ cargo run --release
   * WEB service backend
 
 ```
-$ ./target/release/fanlin-rs --help
+$ cargo run --release -- --help
+    Finished `release` profile [optimized] target(s) in 0.21s
+     Running `target/release/fanlin-rs --help`
 A web server to process and serve images
 
 Usage: fanlin-rs [OPTIONS]
 
 Options:
   -c, --conf <CONF>  Path of a setting file [default: fanlin.json]
+  -j, --json <JSON>  JSON data for setting
   -h, --help         Print help
   -V, --version      Print version
 ```
@@ -52,3 +59,9 @@ The aspect ratio is preserved at resizing. Also GIF animation too as well.
 ## Server settings with JSON
 
 Please see an example file named with `fanlin.json` in the root directory.
+
+Also, you can pass the settings as JSON in an argument like this:
+
+```
+$ cat fanlin.json | jq -c . | xargs -0 cargo run --release -- -j
+```
