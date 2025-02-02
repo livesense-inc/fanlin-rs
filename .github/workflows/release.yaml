@@ -34,7 +34,7 @@ jobs:
         run: |
           version=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
           [[ "${{ github.ref }}" == "refs/tags/"* ]] && version=$(echo $version | sed -e 's/^v//')
-          [ "$VERSION" == "main" ] && version=latest
+          [ "$version" == "main" ] && version=latest
           echo "value=$version" >> "$GITHUB_OUTPUT"
 
       - name: Login
@@ -45,9 +45,9 @@ jobs:
       - name: Tag
         id: tag
         run: |
-          tag=ghcr.io/${{ github.repository_owner }}/$IMAGE_NAME:${{ steps.version.value }}
+          tag=ghcr.io/${{ github.repository_owner }}/$IMAGE_NAME:${{ steps.version.outputs.value }}
           docker tag $IMAGE_NAME $tag
           echo "value=$tag" >> "$GITHUB_OUTPUT"
 
       - name: Push
-        run: docker push ${{ steps.tag.value }}
+        run: docker push ${{ steps.tag.outputs.value }}
