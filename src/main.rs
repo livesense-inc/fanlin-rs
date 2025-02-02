@@ -31,6 +31,10 @@ struct Args {
     /// Path of a setting file
     #[arg(short, long, default_value_t = String::from("fanlin.json"))]
     conf: String,
+
+    /// JSON data for setting
+    #[arg(short, long)]
+    json: Option<String>,
 }
 
 #[tokio::main]
@@ -40,7 +44,10 @@ async fn main() {
         .with(logger.with_filter(filter::LevelFilter::INFO))
         .init();
     let args = Args::parse();
-    let cfg = config::Config::from_file(args.conf).expect("failed to read a config file");
+    let cfg = match args.json {
+        Some(j) => config::Config::from_reader(j.as_bytes()).expect("failed to read JSON"),
+        None => config::Config::from_file(args.conf).expect("failed to read a config file"),
+    };
     let listen_addr = format!("{}:{}", &cfg.bind_addr, &cfg.port);
     let listener = TcpListener::bind(&listen_addr)
         .await
