@@ -11,9 +11,13 @@ pub struct Client {
 
 impl Client {
     pub async fn new(cfg: s3::Config) -> Self {
-        let aws_cfg = Self::make_aws_config(cfg).await;
+        let aws_cfg = Self::make_aws_config(cfg.clone()).await;
+        let mut aws_s3_cfg = aws_sdk_s3::config::Builder::from(&aws_cfg);
+        if cfg.aws_endpoint_url.is_some() {
+            aws_s3_cfg = aws_s3_cfg.force_path_style(true);
+        };
         Self {
-            s3: aws_sdk_s3::Client::new(&aws_cfg),
+            s3: aws_sdk_s3::Client::from_conf(aws_s3_cfg.build()),
         }
     }
 
