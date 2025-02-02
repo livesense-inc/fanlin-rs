@@ -26,5 +26,5 @@ copy-object:
 build-image:
 	@docker build -t fanlin-rs:latest .
 
-run-image:
-	@cat fanlin.json | jq -c . | xargs -0 docker run --rm --name=fanlin-rs -p 3000:3000 fanlin-rs -j
+run-image: fanlin.json
+	@cat $^ | jq -c . | xargs -0 docker run --rm --name=fanlin-rs -p 3000:3000 fanlin-rs -j

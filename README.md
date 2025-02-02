@@ -1,4 +1,5 @@
 ![Test](https://github.com/livesense-inc/fanlin-rs/actions/workflows/test.yaml/badge.svg?branch=main)
+![Release](https://github.com/livesense-inc/fanlin-rs/actions/workflows/release.yaml/badge.svg)
 
 fanlin-rs
 ===============================================================================
