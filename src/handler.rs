@@ -15,11 +15,44 @@ use std::{io::Cursor, path::Path};
 pub struct State {
     providers: Vec<config::Provider>,
     client: infra::Client,
+    fallback_image: Option<Vec<u8>>,
 }
 
 impl State {
     pub fn new(providers: Vec<config::Provider>, client: infra::Client) -> Self {
-        Self { providers, client }
+        let fallback_image = None;
+        Self {
+            providers,
+            client,
+            fallback_image,
+        }
+    }
+
+    pub async fn with_fallback(&mut self, path: &str) -> Result<(), Box<dyn std::error::Error>> {
+        match self.get_image(path).await {
+            Some(result) => match result {
+                Ok(img) => {
+                    self.fallback_image = Some(img);
+                    Ok(())
+                }
+                Err(err) => Err(err),
+            },
+            None => Ok(()),
+        }
+    }
+
+    pub fn can_fallback(&self) -> bool {
+        self.fallback_image.is_some()
+    }
+
+    pub fn fallback(
+        &self,
+        params: &query::Query,
+    ) -> Result<(&'static str, Vec<u8>), Box<dyn std::error::Error>> {
+        match &self.fallback_image {
+            Some(img) => self.process_image(img, params),
+            None => Err(Box::from("failed to fallback")),
+        }
     }
 
     pub async fn get_image(
@@ -65,8 +98,8 @@ impl State {
 
     pub fn process_image(
         &self,
-        original: Vec<u8>,
-        params: query::Query,
+        original: &Vec<u8>,
+        params: &query::Query,
     ) -> Result<(&'static str, Vec<u8>), Box<dyn std::error::Error>> {
         // https://docs.rs/image/latest/image/struct.ImageReader.html
         let cursor = Cursor::new(original);
@@ -82,7 +115,10 @@ impl State {
             }
         };
         if params.as_is() {
-            return Ok((format.to_mime_type(), reader.into_inner().into_inner()));
+            return Ok((
+                format.to_mime_type(),
+                reader.into_inner().into_inner().to_owned(),
+            ));
         }
         if format == ImageFormat::Gif {
             return self.process_gif(reader.into_inner().into_inner(), params);
@@ -148,8 +184,8 @@ impl State {
 
     fn process_gif(
         &self,
-        original: Vec<u8>,
-        params: query::Query,
+        original: &Vec<u8>,
+        params: &query::Query,
     ) -> Result<(&'static str, Vec<u8>), Box<dyn std::error::Error>> {
         let reader = Cursor::new(original);
         // https://docs.rs/image/latest/image/codecs/gif/index.html
