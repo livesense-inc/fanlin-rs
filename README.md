@@ -62,7 +62,6 @@ The aspect ratio is preserved at resizing. Also GIF animation too as well.
 ## Server settings with JSON
 
 Please see an example file named with `fanlin.json` in the root directory.
-
 Also, you can pass the settings as JSON in an argument like this:
 
 ```
