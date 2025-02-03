@@ -86,7 +86,7 @@ fn test_legit_config() {
     let got = Config::from_reader(cfg.as_bytes()).expect("failed to read config");
     assert_eq!(got.port, 3000);
     assert_eq!(got.bind_addr, "0.0.0.0");
-    assert_eq!(got.fallback_path, Some("no_img.jpg".to_string()));
+    assert_eq!(got.fallback_path, Some("/foo/no_img.jpg".to_string()));
     assert_eq!(got.client.s3.aws_region, "ap-northeast-1".to_string());
     assert_eq!(
         got.client.s3.aws_endpoint_url,
