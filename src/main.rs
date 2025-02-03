@@ -53,7 +53,13 @@ async fn main() {
         .await
         .expect("failed to bind address");
     let cli = infra::Client::new(&cfg).await;
-    let state = handler::State::new(cfg.providers.clone(), cli);
+    let mut state = handler::State::new(cfg.providers.clone(), cli);
+    if let Some(p) = cfg.fallback_path {
+        state
+            .with_fallback(p.as_str())
+            .await
+            .expect("failed to fetch fallback content");
+    };
     // https://github.com/tower-rs/tower-http/blob/main/examples/axum-key-value-store/src/main.rs
     // https://docs.rs/tower-http/latest/tower_http/trace/index.html#on_request
     // https://docs.rs/tower-http/latest/tower_http/trace/struct.DefaultOnResponse.html
@@ -96,7 +102,7 @@ async fn generic_handler(
         return (
             StatusCode::BAD_REQUEST,
             [(header::CONTENT_TYPE, "text/plain")],
-            Body::new("supported width and height: 20-2000 x 20-1000".to_string()),
+            Body::from("supported width and height: 20-2000 x 20-1000"),
         );
     }
     // https://docs.rs/axum/latest/axum/response/index.html
@@ -106,35 +112,66 @@ async fn generic_handler(
             Ok(img) => img,
             Err(err) => {
                 tracing::error!("failled to get an original image; {:?}", err);
-                return (
+                return fallback_or_message(
+                    &state,
+                    &params,
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    [(header::CONTENT_TYPE, "text/plain")],
-                    Body::from("server error on fetching an image".to_string()),
+                    "server error on fetching an image",
                 );
             }
         },
         None => {
-            return (
-                StatusCode::NOT_FOUND,
-                [(header::CONTENT_TYPE, "text/plain")],
-                Body::new("not found".to_string()),
-            );
+            return fallback_or_message(&state, &params, StatusCode::NOT_FOUND, "not found");
         }
     };
     // https://docs.rs/axum/latest/axum/body/struct.Body.html
     // https://github.com/tokio-rs/axum/blob/main/examples/stream-to-file/src/main.rs
-    state.process_image(original, params).map_or_else(
+    state.process_image(&original, &params).map_or_else(
         |err| {
             tracing::error!("failed to process an image; {:?}", err);
-            (
+            fallback_or_message(
+                &state,
+                &params,
                 StatusCode::INTERNAL_SERVER_ERROR,
-                [(header::CONTENT_TYPE, "text/plain")],
-                Body::from("server error on processing an image".to_string()),
+                "server error on processing an image",
             )
         },
         |(mime_type, processed)| {
             (
                 StatusCode::OK,
+                [(header::CONTENT_TYPE, mime_type)],
+                Body::from(processed),
+            )
+        },
+    )
+}
+
+fn fallback_or_message(
+    state: &handler::State,
+    params: &query::Query,
+    status: StatusCode,
+    message: &'static str,
+) -> (StatusCode, [(header::HeaderName, &'static str); 1], Body) {
+    if !state.can_fallback() {
+        return (
+            status,
+            [(header::CONTENT_TYPE, "text/plain")],
+            Body::from(message),
+        );
+    }
+
+    state.fallback(params).map_or_else(
+        |err| {
+            tracing::error!("failed to process an image for fallback; {:?}", err);
+            (
+                status,
+                [(header::CONTENT_TYPE, "text/plain")],
+                Body::from(message),
+            )
+        },
+        |(mime_type, processed)| {
+            (
+                status,
                 [(header::CONTENT_TYPE, mime_type)],
                 Body::from(processed),
             )
