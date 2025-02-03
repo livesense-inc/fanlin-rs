@@ -55,7 +55,7 @@ impl State {
                         Ok(path) => path,
                         Err(err) => return Some(Err(err)),
                     };
-                    return self.client.local.read(local_path).await;
+                    return self.client.file.read(local_path).await;
                 }
                 _ => return None,
             }

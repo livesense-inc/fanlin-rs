@@ -1,4 +1,4 @@
-pub mod local;
+pub mod file;
 pub mod s3;
 pub mod web;
 
@@ -8,7 +8,7 @@ use super::config;
 pub struct Client {
     pub s3: s3::Client,
     pub web: web::Client,
-    pub local: local::Client,
+    pub file: file::Client,
 }
 
 impl Client {
@@ -16,7 +16,7 @@ impl Client {
         Self {
             s3: s3::Client::new(cfg.client.s3.clone()).await,
             web: web::Client::new(cfg.client.web.clone()),
-            local: local::Client::new(),
+            file: file::Client::new(),
         }
     }
 }
