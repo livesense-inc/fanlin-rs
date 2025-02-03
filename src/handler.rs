@@ -41,17 +41,13 @@ impl State {
         }
     }
 
-    pub fn can_fallback(&self) -> bool {
-        self.fallback_image.is_some()
-    }
-
     pub fn fallback(
         &self,
         params: &query::Query,
     ) -> Result<(&'static str, Vec<u8>), Box<dyn std::error::Error>> {
         match &self.fallback_image {
             Some(img) => self.process_image(img, params),
-            None => Err(Box::from("failed to fallback")),
+            None => Err(Box::from("fallback image uninitialized")),
         }
     }
 
