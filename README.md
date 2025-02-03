@@ -27,6 +27,8 @@ $ cargo run --release
   * AWS S3 backend
 * http://127.0.0.1:3000/bar/image.png?w=1618&h=1000
   * WEB service backend
+* http://127.0.0.1:3000/baz/image.png?w=1618&h=1000
+  * Local file backend
 
 ```
 $ cargo run --release -- --help
@@ -60,7 +62,6 @@ The aspect ratio is preserved at resizing. Also GIF animation too as well.
 ## Server settings with JSON
 
 Please see an example file named with `fanlin.json` in the root directory.
-
 Also, you can pass the settings as JSON in an argument like this:
 
 ```
