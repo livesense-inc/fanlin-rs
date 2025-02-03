@@ -152,17 +152,8 @@ fn fallback_or_message(
     status: StatusCode,
     message: &'static str,
 ) -> (StatusCode, [(header::HeaderName, &'static str); 1], Body) {
-    if !state.can_fallback() {
-        return (
-            status,
-            [(header::CONTENT_TYPE, "text/plain")],
-            Body::from(message),
-        );
-    }
-
     state.fallback(params).map_or_else(
-        |err| {
-            tracing::error!("failed to process an image for fallback; {:?}", err);
+        |_err| {
             (
                 status,
                 [(header::CONTENT_TYPE, "text/plain")],
