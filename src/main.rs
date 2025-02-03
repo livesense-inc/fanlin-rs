@@ -10,7 +10,7 @@ use axum::{
     Router,
 };
 use clap::Parser;
-use std::{net::SocketAddr, time::Duration};
+use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::{net::TcpListener, signal};
 use tower_http::{
     timeout::TimeoutLayer,
@@ -74,7 +74,7 @@ async fn main() {
                     .latency_unit(LatencyUnit::Millis),
             ),
         )
-        .with_state(state);
+        .with_state(Arc::new(state));
     tracing::info!("serving on {listen_addr}");
     axum::serve(
         listener,
@@ -90,7 +90,7 @@ async fn generic_handler(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     OriginalUri(uri): OriginalUri,
     Query(params): Query<query::Query>,
-    State(state): State<handler::State>,
+    State(state): State<Arc<handler::State>>,
 ) -> impl IntoResponse {
     tracing::info!(
         target: "tower_http::trace::on_request",

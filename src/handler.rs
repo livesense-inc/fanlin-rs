@@ -11,7 +11,7 @@ use image::{AnimationDecoder, ImageDecoder};
 use percent_encoding::percent_decode_str;
 use std::{io::Cursor, path::Path};
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct State {
     providers: Vec<config::Provider>,
     client: infra::Client,
