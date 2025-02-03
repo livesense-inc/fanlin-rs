@@ -54,14 +54,11 @@ async fn main() {
         .expect("failed to bind address");
     let cli = infra::Client::new(&cfg).await;
     let mut state = handler::State::new(cfg.providers.clone(), cli);
-    match cfg.fallback_path {
-        Some(p) => {
-            state
-                .with_fallback(p.as_str())
-                .await
-                .expect("failed to fetch fallback content");
-        }
-        None => {}
+    if let Some(p) = cfg.fallback_path {
+        state
+            .with_fallback(p.as_str())
+            .await
+            .expect("failed to fetch fallback content");
     };
     // https://github.com/tower-rs/tower-http/blob/main/examples/axum-key-value-store/src/main.rs
     // https://docs.rs/tower-http/latest/tower_http/trace/index.html#on_request
