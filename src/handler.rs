@@ -50,6 +50,13 @@ impl State {
                     let url = build_url(uri, prefix, path);
                     return self.client.web.get(url).await;
                 }
+                "file" => {
+                    let local_path = match build_local_path(uri, prefix, path) {
+                        Ok(path) => path,
+                        Err(err) => return Some(Err(err)),
+                    };
+                    return self.client.local.read(local_path).await;
+                }
                 _ => return None,
             }
         }
@@ -229,6 +236,32 @@ fn build_url(src_uri: &Uri, req_prefix: &str, req_path: &str) -> String {
     )
 }
 
+fn build_local_path(
+    src_uri: &Uri,
+    req_prefix: &str,
+    req_path: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
+    // https://doc.rust-lang.org/std/path/struct.Path.html
+    let path_1 = src_uri.path();
+    let relative = path_1.starts_with("/./");
+    let decoded_path = percent_decode_str(req_path).decode_utf8()?;
+    let path_2 = decoded_path
+        .trim_start_matches(req_prefix)
+        .trim_start_matches("/");
+    let local_path = Path::new(path_1)
+        .join(path_2)
+        .as_path()
+        .to_str()
+        .ok_or("failed to build local path from request")?
+        .to_string()
+        .replace("/..", "");
+    if relative {
+        Ok(local_path.trim_start_matches("/./").to_string())
+    } else {
+        Ok(local_path)
+    }
+}
+
 #[test]
 fn test_build_bucket_and_object_key() {
     #[derive(Debug)]
@@ -363,5 +396,94 @@ fn test_buid_url() {
         let uri = c.src.parse::<Uri>().expect("case bug");
         let got = build_url(&uri, c.req_prefix, c.req_path);
         assert_eq!(got, c.want, "case: {c:?}");
+    }
+}
+
+#[test]
+fn test_buid_local_path() {
+    #[derive(Debug)]
+    struct Case {
+        src: &'static str,
+        req_prefix: &'static str,
+        req_path: &'static str,
+        error: bool,
+        want: &'static str,
+    }
+    let cases = [
+        Case {
+            src: "file://locallhost/./images",
+            req_prefix: "foo",
+            req_path: "foo/dog.gif",
+            error: false,
+            want: "images/dog.gif",
+        },
+        Case {
+            src: "file://locallhost/./images/",
+            req_prefix: "/foo/",
+            req_path: "/foo/dog.gif",
+            error: false,
+            want: "images/dog.gif",
+        },
+        Case {
+            src: "file://locallhost/./images",
+            req_prefix: "/foo",
+            req_path: "/foo/dog.gif",
+            error: false,
+            want: "images/dog.gif",
+        },
+        Case {
+            src: "file://locallhost/./images/",
+            req_prefix: "foo/",
+            req_path: "foo/dog.gif",
+            error: false,
+            want: "images/dog.gif",
+        },
+        Case {
+            src: "file://locallhost/./images",
+            req_prefix: "foo",
+            req_path: "foo/犬.gif",
+            error: false,
+            want: "images/犬.gif",
+        },
+        Case {
+            src: "file://locallhost/./images",
+            req_prefix: "foo",
+            req_path: "foo/%E7%8A%AC.gif",
+            error: false,
+            want: "images/犬.gif",
+        },
+        Case {
+            src: "file://locallhost/./images/animals",
+            req_prefix: "foo",
+            req_path: "foo/bar/dog.gif",
+            error: false,
+            want: "images/animals/bar/dog.gif",
+        },
+        Case {
+            src: "file://localhost/var/lib/images",
+            req_prefix: "foo",
+            req_path: "foo/dog.gif",
+            error: false,
+            want: "/var/lib/images/dog.gif",
+        },
+        Case {
+            src: "file://localhost/var/lib/images",
+            req_prefix: "foo",
+            req_path: "foo/../../etc/passwd",
+            error: false,
+            want: "/var/lib/images/etc/passwd",
+        },
+    ];
+    for c in cases {
+        let uri = c.src.parse::<Uri>().expect("case bug");
+        match build_local_path(&uri, c.req_prefix, c.req_path) {
+            Ok(got) => {
+                assert!(!c.error, "case: {c:?}");
+                assert_eq!(got, c.want, "case: {c:?}");
+            }
+            Err(err) => {
+                assert!(c.error, "case: {c:?}, error: {err}");
+            }
+        }
     }
 }
