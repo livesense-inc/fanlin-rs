@@ -27,6 +27,8 @@ $ cargo run --release
   * AWS S3 backend
 * http://127.0.0.1:3000/bar/image.png?w=1618&h=1000
   * WEB service backend
+* http://127.0.0.1:3000/baz/image.png?w=1618&h=1000
+  * Local file backend
 
 ```
 $ cargo run --release -- --help
