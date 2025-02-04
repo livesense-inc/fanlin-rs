@@ -3,20 +3,16 @@ extern crate tokio;
 
 use axum::{
     body::Body,
-    extract::{ConnectInfo, OriginalUri, Query, State},
+    extract::{OriginalUri, Query, State},
     http::{header, StatusCode},
     response::IntoResponse,
     routing::get,
     Router,
 };
 use clap::Parser;
-use std::{net::SocketAddr, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 use tokio::{net::TcpListener, signal};
-use tower_http::{
-    timeout::TimeoutLayer,
-    trace::{DefaultOnResponse, TraceLayer},
-    LatencyUnit,
-};
+use tower_http::timeout::TimeoutLayer;
 use tracing_subscriber::{filter, prelude::*};
 
 mod config;
@@ -39,7 +35,12 @@ struct Args {
 
 #[tokio::main]
 async fn main() {
-    let logger = tracing_subscriber::fmt::layer().json();
+    // https://docs.rs/tracing-subscriber/latest/tracing_subscriber/fmt/struct.SubscriberBuilder.html
+    let logger = tracing_subscriber::fmt::layer()
+        .with_target(false)
+        .json()
+        .with_span_list(false)
+        .flatten_event(true);
     tracing_subscriber::registry()
         .with(logger.with_filter(filter::LevelFilter::INFO))
         .init();
@@ -55,49 +56,52 @@ async fn main() {
     let cli = infra::Client::new(&cfg).await;
     let mut state = handler::State::new(cfg.providers.clone(), cli);
     if let Some(p) = cfg.fallback_path {
-        state
-            .with_fallback(p.as_str())
-            .await
-            .expect("failed to fetch fallback content");
+        state.with_fallback(p.as_str()).await.map_or_else(
+            |err| {
+                tracing::warn!("failed to initialize fallback image; {err:?}");
+            },
+            |_| {},
+        )
     };
     // https://github.com/tower-rs/tower-http/blob/main/examples/axum-key-value-store/src/main.rs
-    // https://docs.rs/tower-http/latest/tower_http/trace/index.html#on_request
-    // https://docs.rs/tower-http/latest/tower_http/trace/struct.DefaultOnResponse.html
+    // https://docs.rs/axum/latest/axum/middleware/index.html
+    // https://docs.rs/tower-http/latest/tower_http/trace/index.html
+    // https://docs.rs/tower-http/latest/tower_http/timeout/struct.TimeoutLayer.html
+    // https://github.com/tower-rs/tower-http/issues/296
+    // https://docs.rs/tracing/latest/tracing/span/struct.Span.html
     let router = Router::new()
         .route("/ping", get(|| async { "pong" }))
         .fallback(generic_handler)
-        .layer(TimeoutLayer::new(Duration::from_secs(10)))
         .layer(
-            TraceLayer::new_for_http().on_response(
-                DefaultOnResponse::new()
-                    .level(tracing::Level::INFO)
-                    .latency_unit(LatencyUnit::Millis),
-            ),
+            tower::ServiceBuilder::new()
+                .layer(
+                    tower_http::trace::TraceLayer::new_for_http()
+                        .make_span_with(
+                            tower_http::trace::DefaultMakeSpan::new().level(tracing::Level::INFO),
+                        )
+                        .on_response(
+                            tower_http::trace::DefaultOnResponse::new()
+                                .level(tracing::Level::INFO)
+                                .latency_unit(tower_http::LatencyUnit::Millis),
+                        )
+                        .on_failure(()),
+                )
+                .layer(TimeoutLayer::new(Duration::from_secs(10))),
         )
         .with_state(Arc::new(state));
     tracing::info!("serving on {listen_addr}");
-    axum::serve(
-        listener,
-        router.into_make_service_with_connect_info::<SocketAddr>(),
-    )
-    .with_graceful_shutdown(shutdown_signal())
-    .await
-    .expect("failed to start server");
+    axum::serve(listener, router)
+        .with_graceful_shutdown(shutdown_signal())
+        .await
+        .expect("failed to start server");
 }
 
 #[axum::debug_handler]
 async fn generic_handler(
-    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     OriginalUri(uri): OriginalUri,
     Query(params): Query<query::Query>,
     State(state): State<Arc<handler::State>>,
 ) -> impl IntoResponse {
-    tracing::info!(
-        target: "tower_http::trace::on_request",
-        message = "started processing request",
-        client = ?addr,
-        url = ?uri
-    );
     if params.unsupported_scale_size() {
         return (
             StatusCode::BAD_REQUEST,
@@ -111,7 +115,7 @@ async fn generic_handler(
         Some(result) => match result {
             Ok(img) => img,
             Err(err) => {
-                tracing::error!("failled to get an original image; {:?}", err);
+                tracing::error!("failled to get an original image; {err:?}");
                 return fallback_or_message(
                     &state,
                     &params,
@@ -128,7 +132,7 @@ async fn generic_handler(
     // https://github.com/tokio-rs/axum/blob/main/examples/stream-to-file/src/main.rs
     state.process_image(&original, &params).map_or_else(
         |err| {
-            tracing::error!("failed to process an image; {:?}", err);
+            tracing::error!("failed to process an image; {err:?}");
             fallback_or_message(
                 &state,
                 &params,

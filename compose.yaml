@@ -12,13 +12,13 @@ services:
     command:
       - server
       - /data
-  app:
-    build: .
-    image: fanlin-rs
-    ports:
-      - "3001:3000"
-    volumes:
-      - ./fanlin-container.json:/etc/fanlin-rs/fanlin.json
-    command:
-      - -c
-      - /etc/fanlin-rs/fanlin.json
+# app:
+#   build: .
+#   image: fanlin-rs
+#   ports:
+#     - "3001:3000"
+#   volumes:
+#     - ./fanlin-container.json:/etc/fanlin-rs/fanlin.json
+#   command:
+#     - -c
+#     - /etc/fanlin-rs/fanlin.json
