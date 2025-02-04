@@ -18,7 +18,7 @@ services:
 #   ports:
 #     - "3001:3000"
 #   volumes:
-#     - ./fanlin-container.json:/etc/fanlin-rs/fanlin.json
+#     - ./fanlin-container.json:/etc/fanlin.json
 #   command:
 #     - -c
-#     - /etc/fanlin-rs/fanlin.json
+#     - /etc/fanlin.json

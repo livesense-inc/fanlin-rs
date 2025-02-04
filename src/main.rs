@@ -84,6 +84,9 @@ async fn main() {
                 )
                 .layer(tower_http::timeout::TimeoutLayer::new(
                     std::time::Duration::from_secs(10),
+                ))
+                .layer(tower::limit::concurrency::ConcurrencyLimitLayer::new(
+                    cfg.max_clients,
                 )),
         )
         .with_state(std::sync::Arc::new(state));

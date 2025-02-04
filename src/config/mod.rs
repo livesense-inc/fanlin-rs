@@ -22,6 +22,7 @@ pub struct Client {
 pub struct Config {
     pub port: usize,
     pub bind_addr: String,
+    pub max_clients: usize,
     pub fallback_path: Option<String>,
     pub client: Client,
     pub providers: Vec<Provider>,
@@ -57,6 +58,7 @@ fn test_legit_config() {
         {
           "port": 3000,
           "bind_addr": "0.0.0.0",
+          "max_clients": 1024,
           "fallback_path": "/foo/no_img.jpg",
           "client": {
             "s3": {
@@ -86,6 +88,7 @@ fn test_legit_config() {
     let got = Config::from_reader(cfg.as_bytes()).expect("failed to read config");
     assert_eq!(got.port, 3000);
     assert_eq!(got.bind_addr, "0.0.0.0");
+    assert_eq!(got.max_clients, 1024);
     assert_eq!(got.fallback_path, Some("/foo/no_img.jpg".to_string()));
     assert_eq!(got.client.s3.aws_region, "ap-northeast-1".to_string());
     assert_eq!(
@@ -128,6 +131,7 @@ fn test_config_with_trailing_comma() {
         {
           "port": 3000,
           "bind_addr": "0.0.0.0",
+          "max_clients": 1024,
           "client": {
             "s3": {
               "aws_region": "ap-northeast-1",
@@ -159,6 +163,7 @@ fn test_optional_config() {
         {
           "port": 3000,
           "bind_addr": "0.0.0.0",
+          "max_clients": 1024,
           "client": {
             "s3": {
               "aws_region": "ap-northeast-1"
