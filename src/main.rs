@@ -7,13 +7,9 @@ use axum::{
     http::{header, StatusCode},
     response::IntoResponse,
     routing::get,
-    Router,
 };
 use clap::Parser;
-use std::{sync::Arc, time::Duration};
-use tokio::{net::TcpListener, signal};
-use tower_http::timeout::TimeoutLayer;
-use tracing_subscriber::{filter, prelude::*};
+use tracing_subscriber::prelude::*;
 
 mod config;
 mod handler;
@@ -42,7 +38,7 @@ async fn main() {
         .with_span_list(false)
         .flatten_event(true);
     tracing_subscriber::registry()
-        .with(logger.with_filter(filter::LevelFilter::INFO))
+        .with(logger.with_filter(tracing_subscriber::filter::LevelFilter::INFO))
         .init();
     let args = Args::parse();
     let cfg = match args.json {
@@ -50,7 +46,7 @@ async fn main() {
         None => config::Config::from_file(args.conf).expect("failed to read a config file"),
     };
     let listen_addr = format!("{}:{}", &cfg.bind_addr, &cfg.port);
-    let listener = TcpListener::bind(&listen_addr)
+    let listener = tokio::net::TcpListener::bind(&listen_addr)
         .await
         .expect("failed to bind address");
     let cli = infra::Client::new(&cfg).await;
@@ -69,7 +65,7 @@ async fn main() {
     // https://docs.rs/tower-http/latest/tower_http/timeout/struct.TimeoutLayer.html
     // https://github.com/tower-rs/tower-http/issues/296
     // https://docs.rs/tracing/latest/tracing/span/struct.Span.html
-    let router = Router::new()
+    let router = axum::Router::new()
         .route("/ping", get(|| async { "pong" }))
         .fallback(generic_handler)
         .layer(
@@ -86,9 +82,11 @@ async fn main() {
                         )
                         .on_failure(()),
                 )
-                .layer(TimeoutLayer::new(Duration::from_secs(10))),
+                .layer(tower_http::timeout::TimeoutLayer::new(
+                    std::time::Duration::from_secs(10),
+                )),
         )
-        .with_state(Arc::new(state));
+        .with_state(std::sync::Arc::new(state));
     tracing::info!("serving on {listen_addr}");
     axum::serve(listener, router)
         .with_graceful_shutdown(shutdown_signal())
@@ -100,7 +98,7 @@ async fn main() {
 async fn generic_handler(
     OriginalUri(uri): OriginalUri,
     Query(params): Query<query::Query>,
-    State(state): State<Arc<handler::State>>,
+    State(state): State<std::sync::Arc<handler::State>>,
 ) -> impl IntoResponse {
     if params.unsupported_scale_size() {
         return (
@@ -177,13 +175,13 @@ fn fallback_or_message(
 async fn shutdown_signal() {
     // https://github.com/tokio-rs/axum/blob/main/examples/graceful-shutdown/src/main.rs
     let ctrl_c = async {
-        signal::ctrl_c()
+        tokio::signal::ctrl_c()
             .await
             .expect("failed to install Ctrl+C handler");
     };
     #[cfg(unix)]
     let terminate = async {
-        signal::unix::signal(signal::unix::SignalKind::terminate())
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
             .expect("failed to install signal handler")
             .recv()
             .await;
