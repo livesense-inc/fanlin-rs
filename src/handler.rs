@@ -58,8 +58,8 @@ impl State {
             if !path.starts_with(prefix) {
                 continue;
             }
-            let uri = &provider.src.parse::<Uri>().unwrap();
-            match uri.scheme().unwrap().as_str() {
+            let uri = &provider.src.parse::<Uri>()?;
+            match uri.scheme().map_or("", |v| v.as_str()) {
                 "s3" => {
                     let (bucket, key) = build_bucket_and_object_key(uri, prefix, path)?;
                     return self.client.s3.get_object(bucket, key).await;
