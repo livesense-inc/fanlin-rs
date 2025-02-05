@@ -47,7 +47,7 @@ impl Client {
         &self,
         bucket: String,
         key: String,
-    ) -> Option<Result<Vec<u8>, Box<dyn std::error::Error>>> {
+    ) -> Result<Option<Vec<u8>>, Box<dyn std::error::Error>> {
         // https://docs.rs/aws-sdk-s3/latest/aws_sdk_s3/client/struct.Client.html#method.get_object
         // https://docs.rs/aws-sdk-s3/latest/aws_sdk_s3/primitives/struct.ByteStream.html
         match self.s3.get_object().bucket(bucket).key(key).send().await {
@@ -56,15 +56,12 @@ impl Client {
                     .content_length
                     .map_or_else(Vec::new, |size| Vec::with_capacity(size as usize));
                 let mut reader = output.body.into_async_read();
-                match tokio::io::copy_buf(&mut reader, &mut buffer).await {
-                    Ok(_) => (),
-                    Err(err) => return Some(Err(Box::from(err))),
-                }
-                Some(Ok(buffer))
+                let _ = tokio::io::copy_buf(&mut reader, &mut buffer).await?;
+                Ok(Some(buffer))
             }
             Err(sdk_err) => match sdk_err.into_service_error() {
-                GetObjectError::NoSuchKey(_) => None,
-                err => Some(Err(Box::from(err))),
+                GetObjectError::NoSuchKey(_) => Ok(None),
+                err => Err(Box::from(err)),
             },
         }
     }

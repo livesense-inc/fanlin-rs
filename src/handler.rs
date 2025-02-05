@@ -29,16 +29,8 @@ impl State {
     }
 
     pub async fn with_fallback(&mut self, path: &str) -> Result<(), Box<dyn std::error::Error>> {
-        match self.get_image(path).await {
-            Some(result) => match result {
-                Ok(img) => {
-                    self.fallback_image = Some(img);
-                    Ok(())
-                }
-                Err(err) => Err(err),
-            },
-            None => Ok(()),
-        }
+        self.fallback_image = self.get_image(path).await?;
+        Ok(())
     }
 
     pub fn fallback(
@@ -54,11 +46,11 @@ impl State {
     pub async fn get_image(
         &self,
         orig_path: &str,
-    ) -> Option<Result<Vec<u8>, Box<dyn std::error::Error>>> {
+    ) -> Result<Option<Vec<u8>>, Box<dyn std::error::Error>> {
         // /foo/bar.jpg -> foo/bar.jpg
         let path = orig_path.trim_start_matches("/");
         if path.is_empty() {
-            return None;
+            return Ok(None);
         }
         for provider in self.providers.iter() {
             // /foo -> foo
@@ -69,10 +61,7 @@ impl State {
             let uri = &provider.src.parse::<Uri>().unwrap();
             match uri.scheme().unwrap().as_str() {
                 "s3" => {
-                    let (bucket, key) = match build_bucket_and_object_key(uri, prefix, path) {
-                        Ok((bucket, key)) => (bucket, key),
-                        Err(err) => return Some(Err(err)),
-                    };
+                    let (bucket, key) = build_bucket_and_object_key(uri, prefix, path)?;
                     return self.client.s3.get_object(bucket, key).await;
                 }
                 "http" | "https" => {
@@ -80,16 +69,13 @@ impl State {
                     return self.client.web.get(url).await;
                 }
                 "file" => {
-                    let local_path = match build_local_path(uri, prefix, path) {
-                        Ok(path) => path,
-                        Err(err) => return Some(Err(err)),
-                    };
+                    let local_path = build_local_path(uri, prefix, path)?;
                     return self.client.file.read(local_path).await;
                 }
-                _ => return None,
+                _ => return Ok(None),
             }
         }
-        None
+        Ok(None)
     }
 
     pub fn process_image(
