@@ -113,20 +113,20 @@ async fn generic_handler(
     // https://docs.rs/axum/latest/axum/response/index.html
     let path = uri.path();
     let original = match state.get_image(path).await {
-        Some(result) => match result {
-            Ok(img) => img,
-            Err(err) => {
-                tracing::error!("failled to get an original image; {err:?}");
-                return fallback_or_message(
-                    &state,
-                    &params,
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "server error on fetching an image",
-                );
+        Ok(option) => match option {
+            Some(img) => img,
+            None => {
+                return fallback_or_message(&state, &params, StatusCode::NOT_FOUND, "not found");
             }
         },
-        None => {
-            return fallback_or_message(&state, &params, StatusCode::NOT_FOUND, "not found");
+        Err(err) => {
+            tracing::error!("failled to get an original image; {err:?}");
+            return fallback_or_message(
+                &state,
+                &params,
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "server error on fetching an image",
+            );
         }
     };
     // https://docs.rs/axum/latest/axum/body/struct.Body.html

@@ -9,14 +9,14 @@ impl Client {
     pub async fn read<P: AsRef<std::path::Path>>(
         &self,
         path: P,
-    ) -> Option<Result<Vec<u8>, Box<dyn std::error::Error>>> {
+    ) -> Result<Option<Vec<u8>>, Box<dyn std::error::Error>> {
         match tokio::fs::read(path).await {
-            Ok(content) => Some(Ok(content)),
+            Ok(content) => Ok(Some(content)),
             Err(err) => {
                 if err.kind() == std::io::ErrorKind::NotFound {
-                    None
+                    Ok(None)
                 } else {
-                    Some(Err(Box::from(err)))
+                    Err(Box::from(err))
                 }
             }
         }
