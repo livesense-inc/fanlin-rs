@@ -202,9 +202,7 @@ async fn test_generic_handler() {
         .create()
         .await
         .expect("failed to create a bucket");
-    for result in std::fs::read_dir("images")
-        .expect("failed to read fixtures")
-    {
+    for result in std::fs::read_dir("images").expect("failed to read fixtures") {
         let dir_entry = result.unwrap();
         if dir_entry.file_type().unwrap().is_file() {
             let file = dir_entry.file_name().to_str().unwrap().to_string();
