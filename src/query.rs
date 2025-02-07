@@ -23,6 +23,15 @@ impl PartialEq for Query {
     }
 }
 
+const DEFAULT_COLOR: u8 = 32;
+const DEFAULT_QUALITY: u8 = 85;
+const WIDTH_RANGE: std::ops::RangeInclusive<u32> = 20..=2000;
+const HEIGHT_RANGE: std::ops::RangeInclusive<u32> = 10..=1000;
+
+pub fn size_range_info() -> String {
+    format!("{WIDTH_RANGE:?} x {HEIGHT_RANGE:?}")
+}
+
 impl Query {
     pub fn dimensions(&self) -> Option<(u32, u32)> {
         match (self.w, self.h) {
@@ -32,21 +41,23 @@ impl Query {
     }
 
     pub fn fill_color(&self) -> (u8, u8, u8) {
-        self.rgb.as_ref().map_or((32, 32, 32), |text| {
-            let rgb: Vec<u8> = text
-                .split(',')
-                .take(3)
-                .map(|e| e.parse::<u8>().map_or(32, |v| v))
-                .collect();
-            if rgb.len() != 3usize {
-                return (32, 32, 32);
-            }
-            (rgb[0], rgb[1], rgb[2])
-        })
+        self.rgb
+            .as_ref()
+            .map_or((DEFAULT_COLOR, DEFAULT_COLOR, DEFAULT_COLOR), |text| {
+                let rgb: Vec<u8> = text
+                    .split(',')
+                    .take(3)
+                    .map(|e| e.parse::<u8>().map_or(DEFAULT_COLOR, |v| v))
+                    .collect();
+                if rgb.len() != 3usize {
+                    return (DEFAULT_COLOR, DEFAULT_COLOR, DEFAULT_COLOR);
+                }
+                (rgb[0], rgb[1], rgb[2])
+            })
     }
 
     pub fn quality(&self) -> u8 {
-        self.quality.map_or(85, |v| v)
+        self.quality.map_or(DEFAULT_QUALITY, |v| v)
     }
 
     pub fn cropping(&self) -> bool {
@@ -68,7 +79,7 @@ impl Query {
     pub fn unsupported_scale_size(&self) -> bool {
         let w = self.w.map_or(100, |v| v);
         let h = self.h.map_or(100, |v| v);
-        !(20..=2000).contains(&w) || !(20..=1000).contains(&h)
+        !WIDTH_RANGE.contains(&w) || !HEIGHT_RANGE.contains(&h)
     }
 }
 
