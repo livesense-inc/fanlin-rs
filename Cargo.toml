@@ -22,6 +22,9 @@ tower-http = { version = "0.6", features = ["timeout", "trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["json"] }
 
+[dev-dependencies]
+tower-http = { version = "0.6", features = ["timeout", "trace", "fs"] }
+
 [profile.container]
 inherits = "release"
 strip = true
