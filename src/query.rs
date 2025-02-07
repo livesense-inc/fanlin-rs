@@ -26,7 +26,7 @@ impl PartialEq for Query {
 const DEFAULT_COLOR: u8 = 32;
 const DEFAULT_QUALITY: u8 = 85;
 const WIDTH_RANGE: std::ops::RangeInclusive<u32> = 20..=2000;
-const HEIGHT_RANGE: std::ops::RangeInclusive<u32> = 10..=1000;
+const HEIGHT_RANGE: std::ops::RangeInclusive<u32> = 20..=1000;
 
 pub fn size_range_info() -> String {
     format!("{WIDTH_RANGE:?} x {HEIGHT_RANGE:?}")
