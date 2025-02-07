@@ -204,13 +204,12 @@ async fn test_generic_handler() {
         .expect("failed to create a bucket");
     for result in std::fs::read_dir("images")
         .expect("failed to read fixtures")
-        .into_iter()
     {
         let dir_entry = result.unwrap();
         if dir_entry.file_type().unwrap().is_file() {
             let file = dir_entry.file_name().to_str().unwrap().to_string();
             let key = format!("images/{file}");
-            let _ = client
+            client
                 .s3
                 .put_object(&bucket, &key, dir_entry.path())
                 .await
@@ -224,11 +223,11 @@ async fn test_generic_handler() {
         },
         config::Provider {
             path: "bar".to_string(),
-            src: format!("http://127.0.0.1/images"),
+            src: "http://127.0.0.1/images".to_string(),
         },
         config::Provider {
             path: "baz".to_string(),
-            src: format!("file://localhost/./images"),
+            src: "file://localhost/./images".to_string(),
         },
     ]);
     let state = std::sync::Arc::new(handler::State::new(providers, client));
@@ -318,5 +317,5 @@ async fn test_generic_handler() {
             c.url
         );
     }
-    let _ = bucket_manager.clean().await.unwrap();
+    bucket_manager.clean().await.unwrap();
 }

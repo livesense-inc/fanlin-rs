@@ -129,11 +129,8 @@ impl Client {
             .contents()
         {
             // https://docs.rs/aws-sdk-s3/latest/aws_sdk_s3/client/struct.Client.html#method.delete_object
-            match content.key() {
-                Some(key) => {
-                    self.s3.delete_object().bucket(name).key(key).send().await?;
-                }
-                None => {}
+            if let Some(key) = content.key() {
+                self.s3.delete_object().bucket(name).key(key).send().await?;
             }
         }
         // https://docs.rs/aws-sdk-s3/latest/aws_sdk_s3/client/struct.Client.html#method.delete_bucket
@@ -163,7 +160,7 @@ impl BucketManager {
 
     pub async fn clean(&self) -> Result<(), Box<dyn std::error::Error>> {
         for bucket in self.list.iter() {
-            let _ = self.cli.delete_bucket(bucket).await?;
+            self.cli.delete_bucket(bucket).await?;
         }
         Ok(())
     }
