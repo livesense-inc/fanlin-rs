@@ -202,18 +202,10 @@ async fn test_generic_handler() {
         .create()
         .await
         .expect("failed to create a bucket");
-    for result in std::fs::read_dir("images").expect("failed to read fixtures") {
-        let dir_entry = result.unwrap();
-        if dir_entry.file_type().unwrap().is_file() {
-            let file = dir_entry.file_name().to_str().unwrap().to_string();
-            let key = format!("images/{file}");
-            client
-                .s3
-                .put_object(&bucket, &key, dir_entry.path())
-                .await
-                .unwrap();
-        }
-    }
+    bucket_manager
+        .upload_fixture_files(&bucket, "images", "images")
+        .await
+        .expect("failed to upload fixture files");
     let (port, mock_server) = infra::web::run_mock_server("/images", "images").await;
     let providers = Vec::from([
         config::Provider {
@@ -287,14 +279,29 @@ async fn test_generic_handler() {
             want_type: "text/plain",
         },
         Case {
+            url: "http://127.0.0.1:3000/foo/who.jpg",
+            want_status: StatusCode::NOT_FOUND,
+            want_type: "text/plain",
+        },
+        Case {
             url: "http://127.0.0.1:3000/bar/lenna.jpg",
             want_status: StatusCode::OK,
             want_type: "image/jpeg",
         },
         Case {
+            url: "http://127.0.0.1:3000/bar/who.jpg",
+            want_status: StatusCode::NOT_FOUND,
+            want_type: "text/plain",
+        },
+        Case {
             url: "http://127.0.0.1:3000/baz/lenna.jpg",
             want_status: StatusCode::OK,
             want_type: "image/jpeg",
+        },
+        Case {
+            url: "http://127.0.0.1:3000/baz/who.jpg",
+            want_status: StatusCode::NOT_FOUND,
+            want_type: "text/plain",
         },
     ];
     for c in cases {

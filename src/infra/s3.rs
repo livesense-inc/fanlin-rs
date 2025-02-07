@@ -79,7 +79,7 @@ impl Client {
         Self::new(cfg.clone()).await
     }
 
-    pub async fn put_object<P: AsRef<std::path::Path>>(
+    async fn put_object<P: AsRef<std::path::Path>>(
         &self,
         bucket: &String,
         key: &String,
@@ -156,6 +156,23 @@ impl BucketManager {
         let bucket = self.cli.create_bucket().await?;
         self.list.push(bucket.clone());
         Ok(bucket)
+    }
+
+    pub async fn upload_fixture_files(
+        &self,
+        bucket: &String,
+        dir: &str,
+        path: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        for result in std::fs::read_dir(dir)? {
+            let dir_entry = result?;
+            if dir_entry.file_type()?.is_file() {
+                let file = dir_entry.file_name().to_str().unwrap().to_string();
+                let key = format!("{path}/{file}");
+                self.cli.put_object(bucket, &key, dir_entry.path()).await?;
+            }
+        }
+        Ok(())
     }
 
     pub async fn clean(&self) -> Result<(), Box<dyn std::error::Error>> {
