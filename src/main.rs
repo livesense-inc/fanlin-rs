@@ -97,8 +97,7 @@ async fn main() {
         .expect("failed to start server");
 }
 
-const CONTENT_TYPE_TEXT_PLAIN: (header::HeaderName, &'static str) =
-    (header::CONTENT_TYPE, "text/plain");
+const CONTENT_TYPE_TEXT_PLAIN: (header::HeaderName, &str) = (header::CONTENT_TYPE, "text/plain");
 
 #[axum::debug_handler]
 async fn generic_handler(
