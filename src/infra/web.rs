@@ -41,3 +41,14 @@ impl Client {
         }
     }
 }
+
+#[cfg(test)]
+impl Client {
+    pub fn for_test() -> Self {
+        let cfg = web::Config {
+            user_agent: "fanlin-rs/0.0.0".to_string(),
+            timeout: 1,
+        };
+        Self::new(cfg)
+    }
+}

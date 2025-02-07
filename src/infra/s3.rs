@@ -66,3 +66,105 @@ impl Client {
         }
     }
 }
+
+#[cfg(test)]
+impl Client {
+    pub async fn for_test() -> Self {
+        let cfg = s3::Config {
+            aws_region: "ap-northeast-1".to_string(),
+            aws_endpoint_url: Some("http://127.0.0.1:4567".to_string()),
+            aws_access_key_id: Some("AAAAAAAAAAAAAAAAAAAA".to_string()),
+            aws_secret_access_key: Some("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA".to_string()),
+        };
+        Self::new(cfg.clone()).await
+    }
+
+    pub async fn put_object<P: AsRef<std::path::Path>>(
+        &self,
+        bucket: &String,
+        key: &String,
+        path: P,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let body = aws_sdk_s3::primitives::ByteStream::from_path(path).await?;
+        let _ = self
+            .s3
+            .put_object()
+            .bucket(bucket)
+            .key(key)
+            .body(body)
+            .send()
+            .await?;
+        Ok(())
+    }
+
+    async fn create_bucket(&self) -> Result<String, Box<dyn std::error::Error>> {
+        // https://docs.rs/aws-sdk-s3/latest/aws_sdk_s3/client/struct.Client.html#method.create_bucket
+        let var = "";
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("time went backwards")
+            .as_millis();
+        let name = format!("rust-test-{timestamp}-{var:p}");
+        let cfg = aws_sdk_s3::types::builders::CreateBucketConfigurationBuilder::default()
+            .location_constraint(aws_sdk_s3::types::BucketLocationConstraint::ApNortheast1)
+            .build();
+        let _ = self
+            .s3
+            .create_bucket()
+            .bucket(&name)
+            .create_bucket_configuration(cfg)
+            .send()
+            .await?;
+        Ok(name)
+    }
+
+    async fn delete_bucket(&self, name: &String) -> Result<(), Box<dyn std::error::Error>> {
+        // https://docs.rs/aws-sdk-s3/latest/aws_sdk_s3/client/struct.Client.html#method.list_objects_v2
+        for content in self
+            .s3
+            .list_objects_v2()
+            .bucket(name)
+            .send()
+            .await?
+            .contents()
+        {
+            // https://docs.rs/aws-sdk-s3/latest/aws_sdk_s3/client/struct.Client.html#method.delete_object
+            match content.key() {
+                Some(key) => {
+                    self.s3.delete_object().bucket(name).key(key).send().await?;
+                }
+                None => {}
+            }
+        }
+        // https://docs.rs/aws-sdk-s3/latest/aws_sdk_s3/client/struct.Client.html#method.delete_bucket
+        let _ = self.s3.delete_bucket().bucket(name).send().await?;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+pub struct BucketManager {
+    cli: Client,
+    list: Vec<String>,
+}
+
+#[cfg(test)]
+impl BucketManager {
+    pub fn new(cli: Client) -> Self {
+        let list = Vec::new();
+        Self { cli, list }
+    }
+
+    pub async fn create(&mut self) -> Result<String, Box<dyn std::error::Error>> {
+        let bucket = self.cli.create_bucket().await?;
+        self.list.push(bucket.clone());
+        Ok(bucket)
+    }
+
+    pub async fn clean(&self) -> Result<(), Box<dyn std::error::Error>> {
+        for bucket in self.list.iter() {
+            let _ = self.cli.delete_bucket(bucket).await?;
+        }
+        Ok(())
+    }
+}
