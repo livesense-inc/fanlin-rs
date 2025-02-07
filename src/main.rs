@@ -97,6 +97,8 @@ async fn main() {
         .expect("failed to start server");
 }
 
+const CONTENT_TYPE_TEXT_PLAIN: (header::HeaderName, &str) = (header::CONTENT_TYPE, "text/plain");
+
 #[axum::debug_handler]
 async fn generic_handler(
     OriginalUri(uri): OriginalUri,
@@ -106,8 +108,11 @@ async fn generic_handler(
     if params.unsupported_scale_size() {
         return (
             StatusCode::BAD_REQUEST,
-            [(header::CONTENT_TYPE, "text/plain")],
-            Body::from("supported width and height: 20-2000 x 20-1000"),
+            [CONTENT_TYPE_TEXT_PLAIN],
+            Body::from(format!(
+                "supported width and height: {}",
+                query::size_range_info()
+            )),
         );
     }
     // https://docs.rs/axum/latest/axum/response/index.html
@@ -158,13 +163,7 @@ fn fallback_or_message(
     message: &'static str,
 ) -> (StatusCode, [(header::HeaderName, &'static str); 1], Body) {
     state.fallback(params).map_or_else(
-        |_err| {
-            (
-                status,
-                [(header::CONTENT_TYPE, "text/plain")],
-                Body::from(message),
-            )
-        },
+        |_err| (status, [CONTENT_TYPE_TEXT_PLAIN], Body::from(message)),
         |(mime_type, processed)| {
             (
                 status,

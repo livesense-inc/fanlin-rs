@@ -2,7 +2,7 @@
   "port": 3000,
   "bind_addr": "0.0.0.0",
   "max_clients": 50,
-  "fallback_path": "/foo/no_img.jpg",
+  "fallback_path": "/baz/no_img.jpg",
   "client": {
     "s3": {
       "aws_region": "ap-northeast-1",
