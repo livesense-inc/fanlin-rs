@@ -52,3 +52,15 @@ impl Client {
         Self::new(cfg)
     }
 }
+
+#[cfg(test)]
+pub async fn run_mock_server(path: &str, dir: &str) -> (u16, tokio::task::JoinHandle<()>) {
+    let router = axum::Router::new().nest_service(path, tower_http::services::ServeDir::new(dir));
+    let addr = std::net::SocketAddr::from((std::net::Ipv4Addr::new(127, 0, 0, 1), 0));
+    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let task_handler = tokio::spawn(async move {
+        axum::serve(listener, router).await.unwrap();
+    });
+    (port, task_handler)
+}

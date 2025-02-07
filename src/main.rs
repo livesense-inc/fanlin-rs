@@ -214,6 +214,7 @@ async fn test_generic_handler() {
                 .unwrap();
         }
     }
+    let (port, mock_server) = infra::web::run_mock_server("/images", "images").await;
     let providers = Vec::from([
         config::Provider {
             path: "foo".to_string(),
@@ -221,7 +222,7 @@ async fn test_generic_handler() {
         },
         config::Provider {
             path: "bar".to_string(),
-            src: "http://127.0.0.1/images".to_string(),
+            src: format!("http://127.0.0.1:{port}/images"),
         },
         config::Provider {
             path: "baz".to_string(),
@@ -234,7 +235,6 @@ async fn test_generic_handler() {
         want_status: StatusCode,
         want_type: &'static str,
     }
-    // TODO: Add web provider cases
     let cases = [
         Case {
             url: "http://127.0.0.1:3000/foo/lenna.jpg",
@@ -287,6 +287,11 @@ async fn test_generic_handler() {
             want_type: "text/plain",
         },
         Case {
+            url: "http://127.0.0.1:3000/bar/lenna.jpg",
+            want_status: StatusCode::OK,
+            want_type: "image/jpeg",
+        },
+        Case {
             url: "http://127.0.0.1:3000/baz/lenna.jpg",
             want_status: StatusCode::OK,
             want_type: "image/jpeg",
@@ -316,4 +321,5 @@ async fn test_generic_handler() {
         );
     }
     bucket_manager.clean().await.unwrap();
+    mock_server.abort();
 }
