@@ -53,5 +53,9 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable
-    - name: Run
+    - name: Run containers
+      run: docker compose --progress quiet up -d
+    - name: Run test
       run: cargo test
+    - name: Stop containers
+      run: docker compose --progress quiet down || true

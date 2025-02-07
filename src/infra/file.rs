@@ -22,3 +22,10 @@ impl Client {
         }
     }
 }
+
+#[cfg(test)]
+impl Client {
+    pub fn for_test() -> Self {
+        Self::new()
+    }
+}

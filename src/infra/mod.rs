@@ -20,3 +20,14 @@ impl Client {
         }
     }
 }
+
+#[cfg(test)]
+impl Client {
+    pub async fn for_test() -> Self {
+        Self {
+            s3: s3::Client::for_test().await,
+            web: web::Client::for_test(),
+            file: file::Client::for_test(),
+        }
+    }
+}

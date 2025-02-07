@@ -193,3 +193,127 @@ async fn shutdown_signal() {
         _ = terminate => {},
     }
 }
+
+#[tokio::test]
+async fn test_generic_handler() {
+    let client = infra::Client::for_test().await;
+    let mut bucket_manager = infra::s3::BucketManager::new(client.s3.clone());
+    let bucket = bucket_manager
+        .create()
+        .await
+        .expect("failed to create a bucket");
+    for result in std::fs::read_dir("images").expect("failed to read fixtures") {
+        let dir_entry = result.unwrap();
+        if dir_entry.file_type().unwrap().is_file() {
+            let file = dir_entry.file_name().to_str().unwrap().to_string();
+            let key = format!("images/{file}");
+            client
+                .s3
+                .put_object(&bucket, &key, dir_entry.path())
+                .await
+                .unwrap();
+        }
+    }
+    let providers = Vec::from([
+        config::Provider {
+            path: "foo".to_string(),
+            src: format!("s3://{bucket}/images"),
+        },
+        config::Provider {
+            path: "bar".to_string(),
+            src: "http://127.0.0.1/images".to_string(),
+        },
+        config::Provider {
+            path: "baz".to_string(),
+            src: "file://localhost/./images".to_string(),
+        },
+    ]);
+    let state = std::sync::Arc::new(handler::State::new(providers, client));
+    struct Case {
+        url: &'static str,
+        want_status: StatusCode,
+        want_type: &'static str,
+    }
+    // TODO: Add web provider cases
+    let cases = [
+        Case {
+            url: "http://127.0.0.1:3000/foo/lenna.jpg",
+            want_status: StatusCode::OK,
+            want_type: "image/jpeg",
+        },
+        Case {
+            url: "http://127.0.0.1:3000/foo/lenna.jpg?w=300&h=200",
+            want_status: StatusCode::OK,
+            want_type: "image/jpeg",
+        },
+        Case {
+            url: "http://127.0.0.1:3000/foo/lenna.jpg?w=300&h=200&avif=true",
+            want_status: StatusCode::OK,
+            want_type: "image/avif",
+        },
+        Case {
+            url: "http://127.0.0.1:3000/foo/lenna.jpg?w=300&h=200&webp=true",
+            want_status: StatusCode::OK,
+            want_type: "image/webp",
+        },
+        Case {
+            url: "http://127.0.0.1:3000/foo/lenna.jpg?w=9999&h=9999",
+            want_status: StatusCode::BAD_REQUEST,
+            want_type: "text/plain",
+        },
+        Case {
+            url: "http://127.0.0.1:3000/foo/lenna.png",
+            want_status: StatusCode::OK,
+            want_type: "image/png",
+        },
+        Case {
+            url: "http://127.0.0.1:3000/foo/lenna.png?w=300&h=200&avif=true",
+            want_status: StatusCode::OK,
+            want_type: "image/avif",
+        },
+        Case {
+            url: "http://127.0.0.1:3000/foo/lenna.gif",
+            want_status: StatusCode::OK,
+            want_type: "image/gif",
+        },
+        Case {
+            url: "http://127.0.0.1:3000/foo/lenna.gif?w=300&h=200&webp=true",
+            want_status: StatusCode::OK,
+            want_type: "image/webp",
+        },
+        Case {
+            url: "http://127.0.0.1:3000/foo/lenna.txt",
+            want_status: StatusCode::INTERNAL_SERVER_ERROR,
+            want_type: "text/plain",
+        },
+        Case {
+            url: "http://127.0.0.1:3000/baz/lenna.jpg",
+            want_status: StatusCode::OK,
+            want_type: "image/jpeg",
+        },
+    ];
+    for c in cases {
+        let uri = c
+            .url
+            .parse::<axum::http::Uri>()
+            .expect("failed to parse a string as an URI");
+        let query: Query<query::Query> =
+            axum::extract::Query::try_from_uri(&uri).expect("failed to parse query from URI");
+        let got = generic_handler(OriginalUri(uri), query, State(state.clone()))
+            .await
+            .into_response();
+        assert_eq!(
+            got.status(),
+            c.want_status,
+            "case: {}, bucket: {bucket}",
+            c.url
+        );
+        assert_eq!(
+            got.headers().get(header::CONTENT_TYPE).unwrap(),
+            c.want_type,
+            "case: {}, bucket: {bucket}",
+            c.url
+        );
+    }
+    bucket_manager.clean().await.unwrap();
+}
