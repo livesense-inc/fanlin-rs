@@ -3,7 +3,7 @@ use super::infra;
 use super::query;
 use axum::http::uri::Uri;
 use image::{
-    codecs::{avif, gif, jpeg, png, webp},
+    codecs::{avif, gif, jpeg, png},
     imageops::{overlay, FilterType},
     DynamicImage, Frame, ImageBuffer, ImageFormat, ImageReader, Limits, Rgba, RgbaImage,
 };
@@ -154,10 +154,16 @@ impl State {
                 img.write_with_encoder(encoder)?;
             }
             ImageFormat::WebP => {
-                // https://docs.rs/image/latest/image/codecs/webp/struct.WebPEncoder.html
-                // TODO: support lossy encoding
-                let encoder = webp::WebPEncoder::new_lossless(&mut buffer);
-                img.write_with_encoder(encoder)?;
+                let q = params.quality().clamp(1, 100);
+                if q == 100 {
+                    // https://docs.rs/image/latest/image/codecs/webp/struct.WebPEncoder.html
+                    let encoder = image::codecs::webp::WebPEncoder::new_lossless(&mut buffer);
+                    img.write_with_encoder(encoder)?;
+                } else {
+                    // https://docs.rs/webp/latest/webp/struct.Encoder.html
+                    let encoder = webp::Encoder::from_image(&img)?;
+                    buffer = Cursor::new(encoder.encode(q as f32).to_vec());
+                }
             }
             _ => img.write_to(&mut buffer, format)?,
         }
