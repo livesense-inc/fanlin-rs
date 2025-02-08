@@ -45,7 +45,7 @@ impl State {
                 .trim_end_matches("/")
                 .to_string();
             let mut prefix = path.clone();
-            prefix.insert_str(0, "/");
+            prefix.insert(0, '/');
             prefix.push_str("/{*p}");
             let provider = Provider { path, src };
             router
