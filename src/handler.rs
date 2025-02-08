@@ -105,8 +105,16 @@ impl State {
         if format == ImageFormat::Gif {
             return self.process_gif(reader.into_inner().into_inner(), params);
         }
+        let mut decoder = reader.into_decoder()?;
         // https://docs.rs/image/latest/image/enum.DynamicImage.html
-        let mut img = reader.decode()?;
+        let mut img = match decoder.orientation() {
+            Ok(o) => {
+                let mut img = DynamicImage::from_decoder(decoder)?;
+                img.apply_orientation(o);
+                img
+            }
+            Err(_) => DynamicImage::from_decoder(decoder)?,
+        };
         if let Some((width, height)) = params.dimensions() {
             // https://docs.rs/image/latest/image/struct.ImageBuffer.html
             if width != img.width() || height != img.height() {
