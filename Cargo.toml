@@ -12,6 +12,7 @@ aws-sdk-s3 = "1.74"
 axum = { version = "0.8", features = ["macros"] }
 clap = { version = "4.5", features = ["derive"] }
 image = "0.25"
+matchit = "0.8"
 percent-encoding = "2.3"
 reqwest = { version = "0.12", features = ["hickory-dns"] }
 serde = { version = "1.0", features = ["derive"] }
