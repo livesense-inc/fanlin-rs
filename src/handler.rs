@@ -1,25 +1,42 @@
 use super::config;
 use super::infra;
 use super::query;
-use axum::http::uri::Uri;
 use image::{
     codecs::{avif, gif, jpeg, png},
     imageops::{overlay, FilterType},
-    DynamicImage, Frame, ImageBuffer, ImageFormat, ImageReader, Limits, Rgba, RgbaImage,
+    AnimationDecoder, DynamicImage, Frame, ImageBuffer, ImageDecoder, ImageFormat, ImageReader,
+    Limits, Rgba, RgbaImage,
 };
-use image::{AnimationDecoder, ImageDecoder};
-use percent_encoding::percent_decode_str;
-use std::{io::Cursor, path::Path};
 
 #[derive(Debug)]
 pub struct State {
-    providers: Vec<config::Provider>,
+    providers: Vec<Provider>,
     client: infra::Client,
     fallback_image: Option<Vec<u8>>,
 }
 
+#[derive(Clone, Debug)]
+struct Provider {
+    path: String,
+    src: axum::http::uri::Uri,
+}
+
 impl State {
-    pub fn new(providers: Vec<config::Provider>, client: infra::Client) -> Self {
+    pub fn new(config_providers: Vec<config::Provider>, client: infra::Client) -> Self {
+        let providers = config_providers
+            .iter()
+            .map(|p| Provider {
+                path: p
+                    .path
+                    .trim_start_matches("/")
+                    .trim_end_matches("/")
+                    .to_string(),
+                src: p
+                    .src
+                    .parse::<axum::http::uri::Uri>()
+                    .expect("failed to parse a provider src as URI"),
+            })
+            .collect();
         let fallback_image = None;
         Self {
             providers,
@@ -53,12 +70,11 @@ impl State {
             return Ok(None);
         }
         for provider in self.providers.iter() {
-            // /foo -> foo
-            let prefix = provider.path.trim_start_matches("/");
+            let prefix = provider.path.as_str();
             if !path.starts_with(prefix) {
                 continue;
             }
-            let uri = &provider.src.parse::<Uri>()?;
+            let uri = &provider.src;
             match uri.scheme().map_or("", |v| v.as_str()) {
                 "s3" => {
                     let (bucket, key) = build_bucket_and_object_key(uri, prefix, path)?;
@@ -84,7 +100,7 @@ impl State {
         params: &query::Query,
     ) -> Result<(&'static str, Vec<u8>), Box<dyn std::error::Error>> {
         // https://docs.rs/image/latest/image/struct.ImageReader.html
-        let cursor = Cursor::new(original);
+        let cursor = std::io::Cursor::new(original);
         let reader = ImageReader::new(cursor).with_guessed_format()?;
         let format: image::ImageFormat = if params.use_avif() {
             ImageFormat::Avif
@@ -136,7 +152,7 @@ impl State {
                 img = DynamicImage::ImageRgba8(bg);
             }
         }
-        let mut buffer = Cursor::new(Vec::new());
+        let mut buffer = std::io::Cursor::new(Vec::new());
         match format {
             // https://docs.rs/image/latest/image/codecs/index.html
             ImageFormat::Png => {
@@ -170,7 +186,7 @@ impl State {
                 } else {
                     // https://docs.rs/webp/latest/webp/struct.Encoder.html
                     let encoder = webp::Encoder::from_image(&img)?;
-                    buffer = Cursor::new(encoder.encode(q as f32).to_vec());
+                    buffer = std::io::Cursor::new(encoder.encode(q as f32).to_vec());
                 }
             }
             _ => img.write_to(&mut buffer, format)?,
@@ -183,7 +199,7 @@ impl State {
         original: &Vec<u8>,
         params: &query::Query,
     ) -> Result<(&'static str, Vec<u8>), Box<dyn std::error::Error>> {
-        let reader = Cursor::new(original);
+        let reader = std::io::Cursor::new(original);
         // https://docs.rs/image/latest/image/codecs/gif/index.html
         let mut decoder = gif::GifDecoder::new(reader)?;
         decoder.set_limits(Limits::no_limits())?;
@@ -220,7 +236,7 @@ impl State {
                 Frame::new(img.to_rgba8())
             })
             .collect();
-        let mut buffer = Cursor::new(Vec::new());
+        let mut buffer = std::io::Cursor::new(Vec::new());
         {
             // https://github.com/image-rs/image/issues/1983
             let mut encoder = gif::GifEncoder::new_with_speed(&mut buffer, 10);
@@ -232,12 +248,12 @@ impl State {
 }
 
 fn build_bucket_and_object_key(
-    src_uri: &Uri,
+    src_uri: &axum::http::uri::Uri,
     req_prefix: &str,
     req_path: &str,
 ) -> Result<(String, String), Box<dyn std::error::Error>> {
     let bucket = src_uri.host().ok_or("s3 client src is wrong")?;
-    let decoded_path = percent_decode_str(req_path).decode_utf8()?;
+    let decoded_path = percent_encoding::percent_decode_str(req_path).decode_utf8()?;
     // /images
     let path_1 = src_uri.path();
     // foo/bar.jpg -> bar.jpg
@@ -245,7 +261,7 @@ fn build_bucket_and_object_key(
         .trim_start_matches(req_prefix)
         .trim_start_matches("/");
     // /images/bar.jpg
-    if let Some(key_path) = Path::new(path_1).join(path_2).as_path().to_str() {
+    if let Some(key_path) = std::path::Path::new(path_1).join(path_2).as_path().to_str() {
         // images/bar.jpg
         Ok((
             bucket.to_string(),
@@ -258,7 +274,7 @@ fn build_bucket_and_object_key(
     }
 }
 
-fn build_url(src_uri: &Uri, req_prefix: &str, req_path: &str) -> String {
+fn build_url(src_uri: &axum::http::uri::Uri, req_prefix: &str, req_path: &str) -> String {
     let prefix = req_prefix.trim_start_matches("/").trim_end_matches("/");
     let path = req_path.trim_start_matches("/").trim_end_matches("/");
     format!(
@@ -269,18 +285,18 @@ fn build_url(src_uri: &Uri, req_prefix: &str, req_path: &str) -> String {
 }
 
 fn build_local_path(
-    src_uri: &Uri,
+    src_uri: &axum::http::uri::Uri,
     req_prefix: &str,
     req_path: &str,
 ) -> Result<String, Box<dyn std::error::Error>> {
     // https://doc.rust-lang.org/std/path/struct.Path.html
     let path_1 = src_uri.path();
     let relative = path_1.starts_with("/./");
-    let decoded_path = percent_decode_str(req_path).decode_utf8()?;
+    let decoded_path = percent_encoding::percent_decode_str(req_path).decode_utf8()?;
     let path_2 = decoded_path
         .trim_start_matches(req_prefix)
         .trim_start_matches("/");
-    let local_path = Path::new(path_1)
+    let local_path = std::path::Path::new(path_1)
         .join(path_2)
         .as_path()
         .to_str()
@@ -356,7 +372,7 @@ fn test_build_bucket_and_object_key() {
         },
     ];
     for c in cases {
-        let uri = c.src.parse::<Uri>().expect("case bug");
+        let uri = c.src.parse::<axum::http::uri::Uri>().expect("case bug");
         match build_bucket_and_object_key(&uri, c.req_prefix, c.req_path) {
             Ok((got_bucket, got_key)) => {
                 assert!(!c.error, "case: {c:?}");
@@ -425,7 +441,7 @@ fn test_buid_url() {
         },
     ];
     for c in cases {
-        let uri = c.src.parse::<Uri>().expect("case bug");
+        let uri = c.src.parse::<axum::http::uri::Uri>().expect("case bug");
         let got = build_url(&uri, c.req_prefix, c.req_path);
         assert_eq!(got, c.want, "case: {c:?}");
     }
@@ -507,7 +523,7 @@ fn test_buid_local_path() {
         },
     ];
     for c in cases {
-        let uri = c.src.parse::<Uri>().expect("case bug");
+        let uri = c.src.parse::<axum::http::uri::Uri>().expect("case bug");
         match build_local_path(&uri, c.req_prefix, c.req_path) {
             Ok(got) => {
                 assert!(!c.error, "case: {c:?}");
