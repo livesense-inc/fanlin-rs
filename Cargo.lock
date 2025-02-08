@@ -1105,6 +1105,7 @@ dependencies = [
  "axum",
  "clap",
  "image",
+ "matchit",
  "percent-encoding",
  "reqwest",
  "serde",

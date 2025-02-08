@@ -10,7 +10,7 @@ use image::{
 
 #[derive(Debug)]
 pub struct State {
-    providers: Vec<Provider>,
+    router: matchit::Router<Provider>,
     client: infra::Client,
     fallback_image: Option<Vec<u8>>,
 }
@@ -22,27 +22,37 @@ struct Provider {
 }
 
 impl State {
-    pub fn new(config_providers: Vec<config::Provider>, client: infra::Client) -> Self {
-        let providers = config_providers
-            .iter()
-            .map(|p| Provider {
-                path: p
-                    .path
-                    .trim_start_matches("/")
-                    .trim_end_matches("/")
-                    .to_string(),
-                src: p
-                    .src
-                    .parse::<axum::http::uri::Uri>()
-                    .expect("failed to parse a provider src as URI"),
-            })
-            .collect();
+    pub fn new(providers: Vec<config::Provider>, client: infra::Client) -> Self {
+        let router = Self::make_router(providers);
         let fallback_image = None;
         Self {
-            providers,
+            router,
             client,
             fallback_image,
         }
+    }
+
+    fn make_router(providers: Vec<config::Provider>) -> matchit::Router<Provider> {
+        let mut router = matchit::Router::new();
+        for p in providers.iter() {
+            let src = p
+                .src
+                .parse::<axum::http::uri::Uri>()
+                .expect("failed to parse a provider src as URI");
+            let path = p
+                .path
+                .trim_start_matches("/")
+                .trim_end_matches("/")
+                .to_string();
+            let mut prefix = path.clone();
+            prefix.insert_str(0, "/");
+            prefix.push_str("/{*p}");
+            let provider = Provider { path, src };
+            router
+                .insert(prefix, provider)
+                .expect("failed to make router with providers");
+        }
+        router
     }
 
     pub async fn with_fallback(&mut self, path: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -62,36 +72,33 @@ impl State {
 
     pub async fn get_image(
         &self,
-        orig_path: &str,
+        req_path: &str,
     ) -> Result<Option<Vec<u8>>, Box<dyn std::error::Error>> {
-        // /foo/bar.jpg -> foo/bar.jpg
-        let path = orig_path.trim_start_matches("/");
-        if path.is_empty() {
-            return Ok(None);
-        }
-        for provider in self.providers.iter() {
-            let prefix = provider.path.as_str();
-            if !path.starts_with(prefix) {
-                continue;
+        // https://docs.rs/matchit/latest/matchit/index.html
+        // https://docs.rs/matchit/latest/matchit/struct.Router.html
+        match self.router.at(req_path) {
+            Ok(matched) => {
+                let provider = matched.value;
+                let prefix = provider.path.as_str();
+                let uri = &provider.src;
+                match uri.scheme().map_or("", |v| v.as_str()) {
+                    "s3" => {
+                        let (bucket, key) = build_bucket_and_object_key(uri, prefix, req_path)?;
+                        self.client.s3.get_object(bucket, key).await
+                    }
+                    "http" | "https" => {
+                        let url = build_url(uri, prefix, req_path);
+                        self.client.web.get(url).await
+                    }
+                    "file" => {
+                        let local_path = build_local_path(uri, prefix, req_path)?;
+                        self.client.file.read(local_path).await
+                    }
+                    _ => Ok(None),
+                }
             }
-            let uri = &provider.src;
-            match uri.scheme().map_or("", |v| v.as_str()) {
-                "s3" => {
-                    let (bucket, key) = build_bucket_and_object_key(uri, prefix, path)?;
-                    return self.client.s3.get_object(bucket, key).await;
-                }
-                "http" | "https" => {
-                    let url = build_url(uri, prefix, path);
-                    return self.client.web.get(url).await;
-                }
-                "file" => {
-                    let local_path = build_local_path(uri, prefix, path)?;
-                    return self.client.file.read(local_path).await;
-                }
-                _ => return Ok(None),
-            }
+            Err(_) => Ok(None),
         }
-        Ok(None)
     }
 
     pub fn process_image(
@@ -253,12 +260,14 @@ fn build_bucket_and_object_key(
     req_path: &str,
 ) -> Result<(String, String), Box<dyn std::error::Error>> {
     let bucket = src_uri.host().ok_or("s3 client src is wrong")?;
+    let prefix = req_prefix.trim_start_matches("/").trim_end_matches("/");
     let decoded_path = percent_encoding::percent_decode_str(req_path).decode_utf8()?;
     // /images
     let path_1 = src_uri.path();
-    // foo/bar.jpg -> bar.jpg
+    // /foo/bar.jpg -> bar.jpg
     let path_2 = decoded_path
-        .trim_start_matches(req_prefix)
+        .trim_start_matches("/")
+        .trim_start_matches(prefix)
         .trim_start_matches("/");
     // /images/bar.jpg
     if let Some(key_path) = std::path::Path::new(path_1).join(path_2).as_path().to_str() {
@@ -292,9 +301,11 @@ fn build_local_path(
     // https://doc.rust-lang.org/std/path/struct.Path.html
     let path_1 = src_uri.path();
     let relative = path_1.starts_with("/./");
+    let prefix = req_prefix.trim_start_matches("/").trim_end_matches("/");
     let decoded_path = percent_encoding::percent_decode_str(req_path).decode_utf8()?;
     let path_2 = decoded_path
-        .trim_start_matches(req_prefix)
+        .trim_start_matches("/")
+        .trim_start_matches(prefix)
         .trim_start_matches("/");
     let local_path = std::path::Path::new(path_1)
         .join(path_2)
@@ -346,6 +357,13 @@ fn test_build_bucket_and_object_key() {
             src: "s3://local-test/images/",
             req_prefix: "foo/",
             req_path: "foo/dog.gif",
+            error: false,
+            want: ("local-test", "images/dog.gif"),
+        },
+        Case {
+            src: "s3://local-test/images/",
+            req_prefix: "foo",
+            req_path: "/foo/dog.gif",
             error: false,
             want: ("local-test", "images/dog.gif"),
         },
@@ -422,6 +440,12 @@ fn test_buid_url() {
             want: "http://127.0.0.1/images/dog.gif",
         },
         Case {
+            src: "http://127.0.0.1/images/",
+            req_prefix: "foo",
+            req_path: "/foo/dog.gif",
+            want: "http://127.0.0.1/images/dog.gif",
+        },
+        Case {
             src: "http://127.0.0.1/images",
             req_prefix: "foo",
             req_path: "foo/犬.gif",
@@ -483,6 +507,13 @@ fn test_buid_local_path() {
             src: "file://locallhost/./images/",
             req_prefix: "foo/",
             req_path: "foo/dog.gif",
+            error: false,
+            want: "images/dog.gif",
+        },
+        Case {
+            src: "file://locallhost/./images/",
+            req_prefix: "foo",
+            req_path: "/foo/dog.gif",
             error: false,
             want: "images/dog.gif",
         },
