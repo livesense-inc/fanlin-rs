@@ -1,7 +1,9 @@
 .git
 .github
-/target
-/*.txt
-/*.md
+*.txt
+*.md
+*.json
+*.yaml
 /tmp
-/fanlin.json
+/target
+/images
