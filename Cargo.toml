@@ -21,6 +21,7 @@ tower = { version = "0.5", features = ["limit"] }
 tower-http = { version = "0.6", features = ["timeout", "trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["json"] }
+webp = "0.3"
 
 [dev-dependencies]
 tower-http = { version = "0.6", features = ["timeout", "trace", "fs"] }
