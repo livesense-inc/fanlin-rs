@@ -162,8 +162,7 @@ impl State {
                 } else {
                     // https://docs.rs/webp/latest/webp/struct.Encoder.html
                     let encoder = webp::Encoder::from_image(&img)?;
-                    let web_mem = encoder.encode(q as f32);
-                    buffer = Cursor::new(web_mem.to_vec());
+                    buffer = Cursor::new(encoder.encode(q as f32).to_vec());
                 }
             }
             _ => img.write_to(&mut buffer, format)?,
