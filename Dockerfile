@@ -8,3 +8,4 @@ RUN cargo build --profile container
 FROM gcr.io/distroless/cc-debian12:nonroot-amd64
 COPY --from=builder /usr/src/app/target/container/fanlin-rs /usr/local/bin/fanlin-rs
 ENTRYPOINT ["/usr/local/bin/fanlin-rs"]
+CMD ["--help"]
