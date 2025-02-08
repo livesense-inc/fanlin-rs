@@ -67,3 +67,59 @@ Also, you can pass the settings as JSON in an argument like this:
 ```
 $ cat fanlin.json | jq -c . | xargs -0 cargo run --release -- -j
 ```
+
+## Benchmark
+```
+$ lscpu | grep -i 'model name'
+Model name:                           13th Gen Intel(R) Core(TM) i7-13700HX
+```
+
+### fanlin-go
+```
+$ echo 'GET http://127.0.0.1:3000/Lenna.jpg?w=300&h=200' | vegeta attack -header='user-agent: vegeta' -rate=50 -duration=180s | tee results.bin | vegeta report
+Requests      [total, rate, throughput]         9000, 50.01, 49.98
+Duration      [total, attack, wait]             3m0s, 3m0s, 91.016ms
+Latencies     [min, mean, 50, 90, 95, 99, max]  86.51ms, 92.629ms, 91.867ms, 97.089ms, 99.1ms, 103.552ms, 121.274ms
+Bytes In      [total, mean]                     81414000, 9046.00
+Bytes Out     [total, mean]                     0, 0.00
+Success       [ratio]                           100.00%
+Status Codes  [code:count]                      200:9000
+Error Set:
+```
+
+```
+$ echo 'GET http://127.0.0.1:3000/Lenna.jpg?w=300&h=200&webp=true&quality=20' | vegeta attack -header='user-agent: vegeta' -rate=50 -duration=180s | tee results.bin | vegeta report
+Requests      [total, rate, throughput]         9000, 50.01, 49.98
+Duration      [total, attack, wait]             3m0s, 3m0s, 92.906ms
+Latencies     [min, mean, 50, 90, 95, 99, max]  90.53ms, 98.425ms, 97.79ms, 103.449ms, 105.209ms, 109.553ms, 123.506ms
+Bytes In      [total, mean]                     24930000, 2770.00
+Bytes Out     [total, mean]                     0, 0.00
+Success       [ratio]                           100.00%
+Status Codes  [code:count]                      200:9000
+Error Set:
+```
+
+### fanlin-rs
+```
+$ echo 'GET http://127.0.0.1:3000/baz/lenna.jpg?w=300&h=200' | vegeta attack -header='user-agent: vegeta' -rate=50 -duration=180s | tee results.bin | vegeta report
+Requests      [total, rate, throughput]         9000, 50.01, 50.00
+Duration      [total, attack, wait]             3m0s, 3m0s, 17.893ms
+Latencies     [min, mean, 50, 90, 95, 99, max]  17.066ms, 18.127ms, 18.058ms, 18.769ms, 19.02ms, 19.68ms, 22.793ms
+Bytes In      [total, mean]                     144189000, 16021.00
+Bytes Out     [total, mean]                     0, 0.00
+Success       [ratio]                           100.00%
+Status Codes  [code:count]                      200:9000
+Error Set:
+```
+
+```
+$ echo 'GET http://127.0.0.1:3000/baz/lenna.jpg?w=300&h=200&webp=true&quality=20' | vegeta attack -header='user-agent: vegeta' -rate=50 -duration=180s | tee results.bin | vegeta report
+Requests      [total, rate, throughput]         9000, 50.01, 50.00
+Duration      [total, attack, wait]             3m0s, 3m0s, 22.188ms
+Latencies     [min, mean, 50, 90, 95, 99, max]  21.45ms, 22.448ms, 22.391ms, 23.07ms, 23.285ms, 23.698ms, 27.456ms
+Bytes In      [total, mean]                     24156000, 2684.00
+Bytes Out     [total, mean]                     0, 0.00
+Success       [ratio]                           100.00%
+Status Codes  [code:count]                      200:9000
+Error Set:
+```
