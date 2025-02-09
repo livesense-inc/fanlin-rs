@@ -123,3 +123,15 @@ Success       [ratio]                           100.00%
 Status Codes  [code:count]                      200:9000
 Error Set:
 ```
+
+```
+$ echo 'GET http://127.0.0.1:3000/baz/lenna.jpg?w=300&h=200' | vegeta attack -header='user-agent: vegeta' -rate=500 -duration=180s | tee results.bin | vegeta report
+Requests      [total, rate, throughput]         90000, 500.00, 499.93
+Duration      [total, attack, wait]             3m0s, 3m0s, 26.676ms
+Latencies     [min, mean, 50, 90, 95, 99, max]  17.075ms, 22.153ms, 20.524ms, 29.73ms, 32.962ms, 35.005ms, 66.47ms
+Bytes In      [total, mean]                     1441890000, 16021.00
+Bytes Out     [total, mean]                     0, 0.00
+Success       [ratio]                           100.00%
+Status Codes  [code:count]                      200:90000
+Error Set:
+```
