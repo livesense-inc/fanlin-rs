@@ -20,6 +20,7 @@ this repository is aimed to be yet another [fanlin](https://github.com/livesense
 $ docker compose up
 $ make create-s3-bucket
 $ make copy-object SRC=/path/to/local/image.png DEST=images/image.png
+$ cp /path/to/local/image.png tmp/
 $ cargo run --release
 ```
 
