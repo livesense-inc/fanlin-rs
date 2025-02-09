@@ -1,3 +1,4 @@
 /target
 /tmp
 /rustc-ice-*.txt
+result.bin
