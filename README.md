@@ -99,6 +99,18 @@ Status Codes  [code:count]                      200:9000
 Error Set:
 ```
 
+```
+$ echo 'GET http://127.0.0.1:3000/Lenna.jpg?w=300&h=200' | vegeta attack -header='user-agent: vegeta' -rate=110 -duration=180s | tee results.bin | vegeta report
+Requests      [total, rate, throughput]         19800, 110.01, 109.93
+Duration      [total, attack, wait]             3m0s, 3m0s, 117.175ms
+Latencies     [min, mean, 50, 90, 95, 99, max]  100.099ms, 148.698ms, 146.996ms, 166.39ms, 172.475ms, 194.229ms, 638.502ms
+Bytes In      [total, mean]                     179110800, 9046.00
+Bytes Out     [total, mean]                     0, 0.00
+Success       [ratio]                           100.00%
+Status Codes  [code:count]                      200:19800
+Error Set:
+```
+
 ### fanlin-rs
 ```
 $ echo 'GET http://127.0.0.1:3000/baz/lenna.jpg?w=300&h=200' | vegeta attack -header='user-agent: vegeta' -rate=50 -duration=180s | tee results.bin | vegeta report
