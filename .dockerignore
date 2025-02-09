@@ -4,6 +4,7 @@
 *.md
 *.json
 *.yaml
+result.bin
 /tmp
 /target
 /images
