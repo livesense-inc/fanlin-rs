@@ -12,6 +12,7 @@ use clap::Parser;
 use tracing_subscriber::prelude::*;
 
 mod config;
+mod content;
 mod handler;
 mod infra;
 mod query;
@@ -101,6 +102,7 @@ const CONTENT_TYPE_TEXT_PLAIN: (header::HeaderName, &str) = (header::CONTENT_TYP
 
 #[axum::debug_handler]
 async fn generic_handler(
+    headers: header::HeaderMap,
     OriginalUri(uri): OriginalUri,
     Query(params): Query<query::Query>,
     State(state): State<std::sync::Arc<handler::State>>,
@@ -115,13 +117,20 @@ async fn generic_handler(
             )),
         );
     }
+    let accepted_format = extract_accepted_image_formats(&headers);
     // https://docs.rs/axum/latest/axum/response/index.html
     let path = uri.path();
     let original = match state.get_image(path).await {
         Ok(option) => match option {
             Some(img) => img,
             None => {
-                return fallback_or_message(&state, &params, StatusCode::NOT_FOUND, "not found");
+                return fallback_or_message(
+                    &state,
+                    &params,
+                    accepted_format,
+                    StatusCode::NOT_FOUND,
+                    "not found",
+                );
             }
         },
         Err(err) => {
@@ -129,6 +138,7 @@ async fn generic_handler(
             return fallback_or_message(
                 &state,
                 &params,
+                accepted_format,
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "server error on fetching an image",
             );
@@ -136,33 +146,37 @@ async fn generic_handler(
     };
     // https://docs.rs/axum/latest/axum/body/struct.Body.html
     // https://github.com/tokio-rs/axum/blob/main/examples/stream-to-file/src/main.rs
-    state.process_image(&original, &params).map_or_else(
-        |err| {
-            tracing::error!("failed to process an image; {err:?}");
-            fallback_or_message(
-                &state,
-                &params,
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "server error on processing an image",
-            )
-        },
-        |(mime_type, processed)| {
-            (
-                StatusCode::OK,
-                [(header::CONTENT_TYPE, mime_type)],
-                Body::from(processed),
-            )
-        },
-    )
+    state
+        .process_image(&original, &params, accepted_format)
+        .map_or_else(
+            |err| {
+                tracing::error!("failed to process an image; {err:?}");
+                fallback_or_message(
+                    &state,
+                    &params,
+                    accepted_format,
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "server error on processing an image",
+                )
+            },
+            |(mime_type, processed)| {
+                (
+                    StatusCode::OK,
+                    [(header::CONTENT_TYPE, mime_type)],
+                    Body::from(processed),
+                )
+            },
+        )
 }
 
 fn fallback_or_message(
     state: &handler::State,
     params: &query::Query,
+    content: content::Format,
     status: StatusCode,
     message: &'static str,
 ) -> (StatusCode, [(header::HeaderName, &'static str); 1], Body) {
-    state.fallback(params).map_or_else(
+    state.fallback(params, content).map_or_else(
         |_err| (status, [CONTENT_TYPE_TEXT_PLAIN], Body::from(message)),
         |(mime_type, processed)| {
             (
@@ -172,6 +186,27 @@ fn fallback_or_message(
             )
         },
     )
+}
+
+fn extract_accepted_image_formats(headers: &header::HeaderMap) -> content::Format {
+    // https://docs.rs/http/1.2.0/http/header/struct.HeaderMap.html
+    // https://docs.rs/http/1.2.0/http/header/struct.HeaderValue.html
+    // https://docs.rs/http/1.2.0/http/header/struct.ValueIter.html
+    let mut content = content::Format::new();
+    headers.get_all(header::ACCEPT).iter().for_each(|v| {
+        if let Ok(v) = v.to_str() {
+            v.split(',').for_each(|v| {
+                if let Some(f) = image::ImageFormat::from_mime_type(v) {
+                    match f {
+                        image::ImageFormat::WebP => content.accept_webp(),
+                        image::ImageFormat::Avif => content.accept_avif(),
+                        _ => (),
+                    }
+                }
+            });
+        }
+    });
+    content
 }
 
 async fn shutdown_signal() {
@@ -311,7 +346,20 @@ async fn test_generic_handler() {
             .expect("failed to parse a string as an URI");
         let query: Query<query::Query> =
             axum::extract::Query::try_from_uri(&uri).expect("failed to parse query from URI");
-        let got = generic_handler(OriginalUri(uri), query, State(state.clone()))
+        let mut headers = header::HeaderMap::new();
+        headers
+            .try_insert(
+                header::ACCEPT,
+                header::HeaderValue::from_str(image::ImageFormat::WebP.to_mime_type()).unwrap(),
+            )
+            .unwrap();
+        headers
+            .try_append(
+                header::ACCEPT,
+                header::HeaderValue::from_str(image::ImageFormat::Avif.to_mime_type()).unwrap(),
+            )
+            .unwrap();
+        let got = generic_handler(headers, OriginalUri(uri), query, State(state.clone()))
             .await
             .into_response();
         assert_eq!(
@@ -329,4 +377,26 @@ async fn test_generic_handler() {
     }
     bucket_manager.clean().await.unwrap();
     mock_server.abort();
+}
+
+#[test]
+fn test_extract_accepted_image_formats() {
+    let raw = "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7";
+    let value = header::HeaderValue::from_str(raw).unwrap();
+    let mut headers = header::HeaderMap::new();
+    headers.try_insert(header::ACCEPT, value).unwrap();
+    let got = extract_accepted_image_formats(&headers);
+    assert!(got.webp_accepted());
+    assert!(got.avif_accepted());
+}
+
+#[test]
+fn test_extract_accepted_image_formats_with_empty() {
+    let raw = "";
+    let value = header::HeaderValue::from_str(raw).unwrap();
+    let mut headers = header::HeaderMap::new();
+    headers.try_insert(header::ACCEPT, value).unwrap();
+    let got = extract_accepted_image_formats(&headers);
+    assert!(!got.webp_accepted());
+    assert!(!got.avif_accepted());
 }
