@@ -193,15 +193,17 @@ fn extract_accepted_image_formats(headers: &header::HeaderMap) -> content::Forma
     // https://docs.rs/http/1.2.0/http/header/struct.HeaderValue.html
     // https://docs.rs/http/1.2.0/http/header/struct.ValueIter.html
     let mut content = content::Format::new();
-    headers.get_all(header::ACCEPT).iter().for_each(|value| {
-        if let Ok(v) = value.to_str() {
-            if let Some(f) = image::ImageFormat::from_mime_type(v) {
-                match f {
-                    image::ImageFormat::WebP => content.accept_webp(),
-                    image::ImageFormat::Avif => content.accept_avif(),
-                    _ => (),
+    headers.get_all(header::ACCEPT).iter().for_each(|v| {
+        if let Ok(v) = v.to_str() {
+            v.split(',').for_each(|v| {
+                if let Some(f) = image::ImageFormat::from_mime_type(v) {
+                    match f {
+                        image::ImageFormat::WebP => content.accept_webp(),
+                        image::ImageFormat::Avif => content.accept_avif(),
+                        _ => (),
+                    }
                 }
-            }
+            });
         }
     });
     content
@@ -375,4 +377,26 @@ async fn test_generic_handler() {
     }
     bucket_manager.clean().await.unwrap();
     mock_server.abort();
+}
+
+#[test]
+fn test_extract_accepted_image_formats() {
+    let raw = "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7";
+    let value = header::HeaderValue::from_str(raw).unwrap();
+    let mut headers = header::HeaderMap::new();
+    headers.try_insert(header::ACCEPT, value).unwrap();
+    let got = extract_accepted_image_formats(&headers);
+    assert!(got.webp_accepted());
+    assert!(got.avif_accepted());
+}
+
+#[test]
+fn test_extract_accepted_image_formats_with_empty() {
+    let raw = "";
+    let value = header::HeaderValue::from_str(raw).unwrap();
+    let mut headers = header::HeaderMap::new();
+    headers.try_insert(header::ACCEPT, value).unwrap();
+    let got = extract_accepted_image_formats(&headers);
+    assert!(!got.webp_accepted());
+    assert!(!got.avif_accepted());
 }
