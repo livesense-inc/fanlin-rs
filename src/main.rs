@@ -193,20 +193,17 @@ fn extract_accepted_image_formats(headers: &header::HeaderMap) -> content::Forma
     // https://docs.rs/http/1.2.0/http/header/struct.HeaderValue.html
     // https://docs.rs/http/1.2.0/http/header/struct.ValueIter.html
     let mut content = content::Format::new();
-    headers
-        .get_all(header::ACCEPT)
-        .iter()
-        .for_each(|value| match value.to_str() {
-            Ok(v) => {
-                if v == image::ImageFormat::WebP.to_mime_type() {
-                    content.accept_webp();
-                }
-                if v == image::ImageFormat::Avif.to_mime_type() {
-                    content.accept_avif();
+    headers.get_all(header::ACCEPT).iter().for_each(|value| {
+        if let Ok(v) = value.to_str() {
+            if let Some(f) = image::ImageFormat::from_mime_type(v) {
+                match f {
+                    image::ImageFormat::WebP => content.accept_webp(),
+                    image::ImageFormat::Avif => content.accept_avif(),
+                    _ => (),
                 }
             }
-            Err(_) => {}
-        });
+        }
+    });
     content
 }
 
