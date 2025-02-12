@@ -63,9 +63,11 @@ impl State {
     pub fn fallback(
         &self,
         params: &query::Query,
+        webp_accepted: bool,
+        avif_accepted: bool,
     ) -> Result<(&'static str, Vec<u8>), Box<dyn std::error::Error>> {
         match &self.fallback_image {
-            Some(img) => self.process_image(img, params),
+            Some(img) => self.process_image(img, params, webp_accepted, avif_accepted),
             None => Err(Box::from("fallback image uninitialized")),
         }
     }
@@ -105,13 +107,15 @@ impl State {
         &self,
         original: &Vec<u8>,
         params: &query::Query,
+        webp_accepted: bool,
+        avif_accepted: bool,
     ) -> Result<(&'static str, Vec<u8>), Box<dyn std::error::Error>> {
         // https://docs.rs/image/latest/image/struct.ImageReader.html
         let cursor = std::io::Cursor::new(original);
         let reader = ImageReader::new(cursor).with_guessed_format()?;
-        let format: image::ImageFormat = if params.use_avif() {
+        let format: image::ImageFormat = if params.use_avif() && avif_accepted {
             ImageFormat::Avif
-        } else if params.use_webp() {
+        } else if params.use_webp() && webp_accepted {
             ImageFormat::WebP
         } else {
             match reader.format() {
