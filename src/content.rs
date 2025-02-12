@@ -36,10 +36,12 @@ impl Format {
         self.accepted(AVIF_FLAG)
     }
 
+    #[inline]
     fn accept(&mut self, mask: u8) {
         self.0 |= mask
     }
 
+    #[inline]
     fn accepted(&self, mask: u8) -> bool {
         (self.0 & mask) == mask
     }
@@ -48,10 +50,12 @@ impl Format {
 #[test]
 fn test_content_format_flag() {
     let mut format = Format::new();
+
     assert!(!format.webp_accepted());
-    assert!(!format.avif_accepted());
     format.accept_webp();
-    format.accept_avif();
     assert!(format.webp_accepted());
+
+    assert!(!format.avif_accepted());
+    format.accept_avif();
     assert!(format.avif_accepted());
 }
