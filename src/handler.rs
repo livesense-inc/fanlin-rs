@@ -112,10 +112,10 @@ impl State {
         // https://docs.rs/image/latest/image/struct.ImageReader.html
         let cursor = std::io::Cursor::new(original);
         let reader = ImageReader::new(cursor).with_guessed_format()?;
-        let format: image::ImageFormat = if params.use_avif() && content.avif_accepted() {
-            ImageFormat::Avif
-        } else if params.use_webp() && content.webp_accepted() {
+        let format: image::ImageFormat = if params.use_webp() && content.webp_accepted() {
             ImageFormat::WebP
+        } else if params.use_avif() && content.avif_accepted() {
+            ImageFormat::Avif
         } else {
             match reader.format() {
                 Some(f) => f,
