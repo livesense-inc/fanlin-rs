@@ -1,4 +1,5 @@
 use super::config;
+use super::content;
 use super::infra;
 use super::query;
 use image::{
@@ -63,11 +64,10 @@ impl State {
     pub fn fallback(
         &self,
         params: &query::Query,
-        webp_accepted: bool,
-        avif_accepted: bool,
+        content: content::Format,
     ) -> Result<(&'static str, Vec<u8>), Box<dyn std::error::Error>> {
         match &self.fallback_image {
-            Some(img) => self.process_image(img, params, webp_accepted, avif_accepted),
+            Some(img) => self.process_image(img, params, content),
             None => Err(Box::from("fallback image uninitialized")),
         }
     }
@@ -107,15 +107,14 @@ impl State {
         &self,
         original: &Vec<u8>,
         params: &query::Query,
-        webp_accepted: bool,
-        avif_accepted: bool,
+        content: content::Format,
     ) -> Result<(&'static str, Vec<u8>), Box<dyn std::error::Error>> {
         // https://docs.rs/image/latest/image/struct.ImageReader.html
         let cursor = std::io::Cursor::new(original);
         let reader = ImageReader::new(cursor).with_guessed_format()?;
-        let format: image::ImageFormat = if params.use_avif() && avif_accepted {
+        let format: image::ImageFormat = if params.use_avif() && content.avif_accepted() {
             ImageFormat::Avif
-        } else if params.use_webp() && webp_accepted {
+        } else if params.use_webp() && content.webp_accepted() {
             ImageFormat::WebP
         } else {
             match reader.format() {

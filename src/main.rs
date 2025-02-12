@@ -12,6 +12,7 @@ use clap::Parser;
 use tracing_subscriber::prelude::*;
 
 mod config;
+mod content;
 mod handler;
 mod infra;
 mod query;
@@ -116,7 +117,7 @@ async fn generic_handler(
             )),
         );
     }
-    let (webp_accepted, avif_accepted) = extract_accepted_image_formats(headers);
+    let accepted_format = extract_accepted_image_formats(&headers);
     // https://docs.rs/axum/latest/axum/response/index.html
     let path = uri.path();
     let original = match state.get_image(path).await {
@@ -126,8 +127,7 @@ async fn generic_handler(
                 return fallback_or_message(
                     &state,
                     &params,
-                    webp_accepted,
-                    avif_accepted,
+                    accepted_format,
                     StatusCode::NOT_FOUND,
                     "not found",
                 );
@@ -138,8 +138,7 @@ async fn generic_handler(
             return fallback_or_message(
                 &state,
                 &params,
-                webp_accepted,
-                avif_accepted,
+                accepted_format,
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "server error on fetching an image",
             );
@@ -148,15 +147,14 @@ async fn generic_handler(
     // https://docs.rs/axum/latest/axum/body/struct.Body.html
     // https://github.com/tokio-rs/axum/blob/main/examples/stream-to-file/src/main.rs
     state
-        .process_image(&original, &params, webp_accepted, avif_accepted)
+        .process_image(&original, &params, accepted_format)
         .map_or_else(
             |err| {
                 tracing::error!("failed to process an image; {err:?}");
                 fallback_or_message(
                     &state,
                     &params,
-                    webp_accepted,
-                    avif_accepted,
+                    accepted_format,
                     StatusCode::INTERNAL_SERVER_ERROR,
                     "server error on processing an image",
                 )
@@ -174,46 +172,42 @@ async fn generic_handler(
 fn fallback_or_message(
     state: &handler::State,
     params: &query::Query,
-    webp_accepted: bool,
-    avif_accepted: bool,
+    content: content::Format,
     status: StatusCode,
     message: &'static str,
 ) -> (StatusCode, [(header::HeaderName, &'static str); 1], Body) {
-    state
-        .fallback(params, webp_accepted, avif_accepted)
-        .map_or_else(
-            |_err| (status, [CONTENT_TYPE_TEXT_PLAIN], Body::from(message)),
-            |(mime_type, processed)| {
-                (
-                    status,
-                    [(header::CONTENT_TYPE, mime_type)],
-                    Body::from(processed),
-                )
-            },
-        )
+    state.fallback(params, content).map_or_else(
+        |_err| (status, [CONTENT_TYPE_TEXT_PLAIN], Body::from(message)),
+        |(mime_type, processed)| {
+            (
+                status,
+                [(header::CONTENT_TYPE, mime_type)],
+                Body::from(processed),
+            )
+        },
+    )
 }
 
-fn extract_accepted_image_formats(headers: header::HeaderMap) -> (bool, bool) {
+fn extract_accepted_image_formats(headers: &header::HeaderMap) -> content::Format {
     // https://docs.rs/http/1.2.0/http/header/struct.HeaderMap.html
     // https://docs.rs/http/1.2.0/http/header/struct.HeaderValue.html
     // https://docs.rs/http/1.2.0/http/header/struct.ValueIter.html
-    let mut webp_accepted = false;
-    let mut avif_accepted = false;
+    let mut content = content::Format::new();
     headers
         .get_all(header::ACCEPT)
         .iter()
         .for_each(|value| match value.to_str() {
             Ok(v) => {
                 if v == image::ImageFormat::WebP.to_mime_type() {
-                    webp_accepted = true;
+                    content.accept_webp();
                 }
                 if v == image::ImageFormat::Avif.to_mime_type() {
-                    avif_accepted = true;
+                    content.accept_avif();
                 }
             }
             Err(_) => {}
         });
-    (webp_accepted, avif_accepted)
+    content
 }
 
 async fn shutdown_signal() {
