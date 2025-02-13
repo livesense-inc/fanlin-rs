@@ -98,7 +98,9 @@ async fn main() {
         .expect("failed to start server");
 }
 
-const CONTENT_TYPE_TEXT_PLAIN: (header::HeaderName, &str) = (header::CONTENT_TYPE, "text/plain");
+const CONTENT_TYPE_TEXT_PLAIN: (header::HeaderName, &str) =
+    (header::CONTENT_TYPE, "text/plain; charset=utf-8");
+const VARY_ACCEPT: (header::HeaderName, &str) = (header::VARY, "Accept");
 
 #[axum::debug_handler]
 async fn generic_handler(
@@ -110,7 +112,7 @@ async fn generic_handler(
     if params.unsupported_scale_size() {
         return (
             StatusCode::BAD_REQUEST,
-            [CONTENT_TYPE_TEXT_PLAIN],
+            [CONTENT_TYPE_TEXT_PLAIN, VARY_ACCEPT],
             Body::from(format!(
                 "supported width and height: {}",
                 query::size_range_info()
@@ -162,7 +164,7 @@ async fn generic_handler(
             |(mime_type, processed)| {
                 (
                     StatusCode::OK,
-                    [(header::CONTENT_TYPE, mime_type)],
+                    [(header::CONTENT_TYPE, mime_type), VARY_ACCEPT],
                     Body::from(processed),
                 )
             },
@@ -175,13 +177,19 @@ fn fallback_or_message(
     content: content::Format,
     status: StatusCode,
     message: &'static str,
-) -> (StatusCode, [(header::HeaderName, &'static str); 1], Body) {
+) -> (StatusCode, [(header::HeaderName, &'static str); 2], Body) {
     state.fallback(params, content).map_or_else(
-        |_err| (status, [CONTENT_TYPE_TEXT_PLAIN], Body::from(message)),
+        |_err| {
+            (
+                status,
+                [CONTENT_TYPE_TEXT_PLAIN, VARY_ACCEPT],
+                Body::from(message),
+            )
+        },
         |(mime_type, processed)| {
             (
                 status,
-                [(header::CONTENT_TYPE, mime_type)],
+                [(header::CONTENT_TYPE, mime_type), VARY_ACCEPT],
                 Body::from(processed),
             )
         },
@@ -286,7 +294,7 @@ async fn test_generic_handler() {
         Case {
             url: "http://127.0.0.1:3000/foo/lenna.jpg?w=9999&h=9999",
             want_status: StatusCode::BAD_REQUEST,
-            want_type: "text/plain",
+            want_type: "text/plain; charset=utf-8",
         },
         Case {
             url: "http://127.0.0.1:3000/foo/lenna.png",
@@ -311,12 +319,12 @@ async fn test_generic_handler() {
         Case {
             url: "http://127.0.0.1:3000/foo/lenna.txt",
             want_status: StatusCode::INTERNAL_SERVER_ERROR,
-            want_type: "text/plain",
+            want_type: "text/plain; charset=utf-8",
         },
         Case {
             url: "http://127.0.0.1:3000/foo/who.jpg",
             want_status: StatusCode::NOT_FOUND,
-            want_type: "text/plain",
+            want_type: "text/plain; charset=utf-8",
         },
         Case {
             url: "http://127.0.0.1:3000/bar/lenna.jpg",
@@ -326,7 +334,7 @@ async fn test_generic_handler() {
         Case {
             url: "http://127.0.0.1:3000/bar/who.jpg",
             want_status: StatusCode::NOT_FOUND,
-            want_type: "text/plain",
+            want_type: "text/plain; charset=utf-8",
         },
         Case {
             url: "http://127.0.0.1:3000/baz/lenna.jpg",
@@ -336,7 +344,7 @@ async fn test_generic_handler() {
         Case {
             url: "http://127.0.0.1:3000/baz/who.jpg",
             want_status: StatusCode::NOT_FOUND,
-            want_type: "text/plain",
+            want_type: "text/plain; charset=utf-8",
         },
     ];
     for c in cases {
