@@ -324,7 +324,7 @@ async fn test_generic_handler() {
         Case {
             url: "http://127.0.0.1:3000/foo/who.jpg",
             want_status: StatusCode::NOT_FOUND,
-            want_type: "text/plain",
+            want_type: "text/plain; charset=utf-8",
         },
         Case {
             url: "http://127.0.0.1:3000/bar/lenna.jpg",
@@ -334,7 +334,7 @@ async fn test_generic_handler() {
         Case {
             url: "http://127.0.0.1:3000/bar/who.jpg",
             want_status: StatusCode::NOT_FOUND,
-            want_type: "text/plain",
+            want_type: "text/plain; charset=utf-8",
         },
         Case {
             url: "http://127.0.0.1:3000/baz/lenna.jpg",
@@ -344,7 +344,7 @@ async fn test_generic_handler() {
         Case {
             url: "http://127.0.0.1:3000/baz/who.jpg",
             want_status: StatusCode::NOT_FOUND,
-            want_type: "text/plain",
+            want_type: "text/plain; charset=utf-8",
         },
     ];
     for c in cases {
