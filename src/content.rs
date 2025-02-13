@@ -9,7 +9,7 @@
 //  | +------------- -
 //  +--------------- -
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Format(u8);
 
 const WEBP_FLAG: u8 = 1 << 0;
