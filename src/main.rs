@@ -294,7 +294,7 @@ async fn test_generic_handler() {
         Case {
             url: "http://127.0.0.1:3000/foo/lenna.jpg?w=9999&h=9999",
             want_status: StatusCode::BAD_REQUEST,
-            want_type: "text/plain",
+            want_type: "text/plain; charset=utf-8",
         },
         Case {
             url: "http://127.0.0.1:3000/foo/lenna.png",
