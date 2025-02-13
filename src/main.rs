@@ -98,7 +98,9 @@ async fn main() {
         .expect("failed to start server");
 }
 
-const CONTENT_TYPE_TEXT_PLAIN: (header::HeaderName, &str) = (header::CONTENT_TYPE, "text/plain");
+const CONTENT_TYPE_TEXT_PLAIN: (header::HeaderName, &str) =
+    (header::CONTENT_TYPE, "text/plain; charset=utf-8");
+const VARY_ACCEPT: (header::HeaderName, &str) = (header::VARY, "Accept");
 
 #[axum::debug_handler]
 async fn generic_handler(
@@ -110,7 +112,7 @@ async fn generic_handler(
     if params.unsupported_scale_size() {
         return (
             StatusCode::BAD_REQUEST,
-            [CONTENT_TYPE_TEXT_PLAIN],
+            [CONTENT_TYPE_TEXT_PLAIN, VARY_ACCEPT],
             Body::from(format!(
                 "supported width and height: {}",
                 query::size_range_info()
@@ -162,7 +164,7 @@ async fn generic_handler(
             |(mime_type, processed)| {
                 (
                     StatusCode::OK,
-                    [(header::CONTENT_TYPE, mime_type)],
+                    [(header::CONTENT_TYPE, mime_type), VARY_ACCEPT],
                     Body::from(processed),
                 )
             },
@@ -175,13 +177,19 @@ fn fallback_or_message(
     content: content::Format,
     status: StatusCode,
     message: &'static str,
-) -> (StatusCode, [(header::HeaderName, &'static str); 1], Body) {
+) -> (StatusCode, [(header::HeaderName, &'static str); 2], Body) {
     state.fallback(params, content).map_or_else(
-        |_err| (status, [CONTENT_TYPE_TEXT_PLAIN], Body::from(message)),
+        |_err| {
+            (
+                status,
+                [CONTENT_TYPE_TEXT_PLAIN, VARY_ACCEPT],
+                Body::from(message),
+            )
+        },
         |(mime_type, processed)| {
             (
                 status,
-                [(header::CONTENT_TYPE, mime_type)],
+                [(header::CONTENT_TYPE, mime_type), VARY_ACCEPT],
                 Body::from(processed),
             )
         },
