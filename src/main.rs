@@ -98,9 +98,8 @@ async fn main() {
         .expect("failed to start server");
 }
 
-const CONTENT_TYPE_TEXT_PLAIN: (header::HeaderName, &str) =
-    (header::CONTENT_TYPE, "text/plain; charset=utf-8");
-const VARY_ACCEPT: (header::HeaderName, &str) = (header::VARY, "Accept");
+const CONTENT_TYPE_TEXT_PLAIN: &str = "text/plain; charset=utf-8";
+const VARY_ACCEPT: &str = "Accept";
 
 #[axum::debug_handler]
 async fn generic_handler(
@@ -110,21 +109,20 @@ async fn generic_handler(
     State(state): State<std::sync::Arc<handler::State>>,
 ) -> impl IntoResponse {
     if params.unsupported_scale_size() {
-        return (
-            StatusCode::BAD_REQUEST,
-            [CONTENT_TYPE_TEXT_PLAIN, VARY_ACCEPT],
-            Body::from(format!(
-                "supported width and height: {}",
-                query::size_range_info()
-            )),
-        );
+        let headers = create_header(CONTENT_TYPE_TEXT_PLAIN, None).expect("broken header");
+        let message = format!("supported width and height: {}", query::size_range_info());
+        return (StatusCode::BAD_REQUEST, headers, Body::from(message));
     }
+    let mut timer = simple_server_timing_header::Timer::new();
     let accepted_format = extract_accepted_image_formats(&headers);
     // https://docs.rs/axum/latest/axum/response/index.html
     let path = uri.path();
     let original = match state.get_image(path).await {
         Ok(option) => match option {
-            Some(img) => img,
+            Some(img) => {
+                timer.add("f_fetch");
+                img
+            }
             None => {
                 return fallback_or_message(
                     &state,
@@ -148,27 +146,42 @@ async fn generic_handler(
     };
     // https://docs.rs/axum/latest/axum/body/struct.Body.html
     // https://github.com/tokio-rs/axum/blob/main/examples/stream-to-file/src/main.rs
-    state
-        .process_image(&original, &params, accepted_format)
-        .map_or_else(
-            |err| {
-                tracing::error!("failed to process an image; {err:?}");
-                fallback_or_message(
-                    &state,
-                    &params,
-                    accepted_format,
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "server error on processing an image",
-                )
-            },
-            |(mime_type, processed)| {
-                (
-                    StatusCode::OK,
-                    [(header::CONTENT_TYPE, mime_type), VARY_ACCEPT],
-                    Body::from(processed),
-                )
-            },
-        )
+    match state.process_image(&original, &params, accepted_format) {
+        Ok((mime_type, processed)) => {
+            timer.add("f_process");
+            let headers = create_header(mime_type, Some(timer)).expect("broken header");
+            (StatusCode::OK, headers, Body::from(processed))
+        }
+        Err(err) => {
+            tracing::error!("failed to process an image; {err:?}");
+            fallback_or_message(
+                &state,
+                &params,
+                accepted_format,
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "server error on processing an image",
+            )
+        }
+    }
+}
+
+fn create_header(
+    content_type: &'static str,
+    timer: Option<simple_server_timing_header::Timer>,
+) -> Result<header::HeaderMap, Box<dyn std::error::Error>> {
+    let mut headers = header::HeaderMap::new();
+    let content_type = header::HeaderValue::from_str(content_type)?;
+    headers.try_insert(header::CONTENT_TYPE, content_type)?;
+    let vary = header::HeaderValue::from_str(VARY_ACCEPT)?;
+    headers.try_insert(header::VARY, vary)?;
+    if let Some(timer) = timer {
+        let server_timing = header::HeaderValue::from_str(timer.header_value().as_str())?;
+        headers.try_insert(
+            simple_server_timing_header::Timer::header_key(),
+            server_timing,
+        )?;
+    }
+    Ok(headers)
 }
 
 fn fallback_or_message(
@@ -177,23 +190,17 @@ fn fallback_or_message(
     content: content::Format,
     status: StatusCode,
     message: &'static str,
-) -> (StatusCode, [(header::HeaderName, &'static str); 2], Body) {
-    state.fallback(params, content).map_or_else(
-        |_err| {
-            (
-                status,
-                [CONTENT_TYPE_TEXT_PLAIN, VARY_ACCEPT],
-                Body::from(message),
-            )
-        },
-        |(mime_type, processed)| {
-            (
-                status,
-                [(header::CONTENT_TYPE, mime_type), VARY_ACCEPT],
-                Body::from(processed),
-            )
-        },
-    )
+) -> (StatusCode, header::HeaderMap, Body) {
+    match state.fallback(params, content) {
+        Ok((mime_type, processed)) => {
+            let headers = create_header(mime_type, None).expect("broken_header");
+            (status, headers, Body::from(processed))
+        }
+        Err(_err) => {
+            let headers = create_header(CONTENT_TYPE_TEXT_PLAIN, None).expect("broken_header");
+            (status, headers, Body::from(message))
+        }
+    }
 }
 
 fn extract_accepted_image_formats(headers: &header::HeaderMap) -> content::Format {

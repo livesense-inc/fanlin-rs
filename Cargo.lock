@@ -1110,6 +1110,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "simple-server-timing-header",
  "tokio",
  "tower",
  "tower-http",
@@ -2934,6 +2935,12 @@ checksum = "95890f873bec569a0362c235787f3aca6e1e887302ba4840839bcc6459c42da6"
 dependencies = [
  "quote",
 ]
+
+[[package]]
+name = "simple-server-timing-header"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "16e78919e05c9b8e123d435a4ad104b488ad1585631830e413830985c214086e"
 
 [[package]]
 name = "slab"
