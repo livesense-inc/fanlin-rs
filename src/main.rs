@@ -109,7 +109,7 @@ async fn generic_handler(
     State(state): State<std::sync::Arc<handler::State>>,
 ) -> impl IntoResponse {
     if params.unsupported_scale_size() {
-        let headers = create_header(CONTENT_TYPE_TEXT_PLAIN, None).expect("broken header");
+        let headers = create_header(CONTENT_TYPE_TEXT_PLAIN, None);
         let message = format!("supported width and height: {}", query::size_range_info());
         return (StatusCode::BAD_REQUEST, headers, Body::from(message));
     }
@@ -149,7 +149,7 @@ async fn generic_handler(
     match state.process_image(&original, &params, accepted_format) {
         Ok((mime_type, processed)) => {
             timer.add("f_process");
-            let headers = create_header(mime_type, Some(timer)).expect("broken header");
+            let headers = create_header(mime_type, Some(timer));
             (StatusCode::OK, headers, Body::from(processed))
         }
         Err(err) => {
@@ -166,6 +166,19 @@ async fn generic_handler(
 }
 
 fn create_header(
+    content_type: &'static str,
+    timer: Option<simple_server_timing_header::Timer>,
+) -> header::HeaderMap {
+    match try_create_header(content_type, timer) {
+        Ok(h) => h,
+        Err(err) => {
+            tracing::error!("failed to create header; {err:?}");
+            header::HeaderMap::new()
+        }
+    }
+}
+
+fn try_create_header(
     content_type: &'static str,
     timer: Option<simple_server_timing_header::Timer>,
 ) -> Result<header::HeaderMap, Box<dyn std::error::Error>> {
@@ -193,11 +206,11 @@ fn fallback_or_message(
 ) -> (StatusCode, header::HeaderMap, Body) {
     match state.fallback(params, content) {
         Ok((mime_type, processed)) => {
-            let headers = create_header(mime_type, None).expect("broken_header");
+            let headers = create_header(mime_type, None);
             (status, headers, Body::from(processed))
         }
         Err(_err) => {
-            let headers = create_header(CONTENT_TYPE_TEXT_PLAIN, None).expect("broken_header");
+            let headers = create_header(CONTENT_TYPE_TEXT_PLAIN, None);
             (status, headers, Body::from(message))
         }
     }
