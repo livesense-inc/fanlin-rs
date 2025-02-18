@@ -110,8 +110,8 @@ async fn generic_handler(
 ) -> impl IntoResponse {
     if params.unsupported_scale_size() {
         let headers = create_header(CONTENT_TYPE_TEXT_PLAIN, None).expect("broken header");
-        let body = format!("supported width and height: {}", query::size_range_info());
-        return (StatusCode::BAD_REQUEST, headers, Body::from(body));
+        let message = format!("supported width and height: {}", query::size_range_info());
+        return (StatusCode::BAD_REQUEST, headers, Body::from(message));
     }
     let mut timer = simple_server_timing_header::Timer::new();
     let accepted_format = extract_accepted_image_formats(&headers);
