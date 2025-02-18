@@ -89,7 +89,7 @@ impl State {
                         self.client.s3.get_object(bucket, key).await
                     }
                     "http" | "https" => {
-                        let url = build_url(uri, prefix, req_path);
+                        let url = build_url(uri, prefix, req_path)?;
                         self.client.web.get(url).await
                     }
                     "file" => {
@@ -263,18 +263,9 @@ fn build_bucket_and_object_key(
     req_path: &str,
 ) -> Result<(String, String), Box<dyn std::error::Error>> {
     let bucket = src_uri.host().ok_or("s3 client src is wrong")?;
-    let prefix = req_prefix.trim_start_matches("/").trim_end_matches("/");
-    let decoded_path = percent_encoding::percent_decode_str(req_path).decode_utf8()?;
-    // /images
     let path_1 = src_uri.path();
-    // /foo/bar.jpg -> bar.jpg
-    let path_2 = decoded_path
-        .trim_start_matches("/")
-        .trim_start_matches(prefix)
-        .trim_start_matches("/");
-    // /images/bar.jpg
+    let path_2 = clean_path(req_path, req_prefix)?;
     if let Some(key_path) = std::path::Path::new(path_1).join(path_2).as_path().to_str() {
-        // images/bar.jpg
         Ok((
             bucket.to_string(),
             key_path.trim_start_matches("/").to_string(),
@@ -286,14 +277,20 @@ fn build_bucket_and_object_key(
     }
 }
 
-fn build_url(src_uri: &axum::http::uri::Uri, req_prefix: &str, req_path: &str) -> String {
-    let prefix = req_prefix.trim_start_matches("/").trim_end_matches("/");
-    let path = req_path.trim_start_matches("/").trim_end_matches("/");
-    format!(
-        "{}/{}",
-        src_uri.to_string().trim_end_matches("/"),
-        path.trim_start_matches(prefix).trim_start_matches("/"),
-    )
+const ASCII_SET: &percent_encoding::AsciiSet =
+    &percent_encoding::NON_ALPHANUMERIC.remove(b'.').remove(b'/');
+
+fn build_url(
+    src_uri: &axum::http::uri::Uri,
+    req_prefix: &str,
+    req_path: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let url = src_uri.to_string();
+    let path = clean_path(req_path, req_prefix)?;
+    // https://docs.rs/percent-encoding/latest/percent_encoding/fn.utf8_percent_encode.html
+    let encoded_path = percent_encoding::utf8_percent_encode(path.as_str(), ASCII_SET).to_string();
+    let target_url = format!("{}/{}", url.trim_end_matches("/"), encoded_path);
+    Ok(target_url)
 }
 
 fn build_local_path(
@@ -304,28 +301,7 @@ fn build_local_path(
     // https://doc.rust-lang.org/std/path/struct.Path.html
     let path_1 = src_uri.path();
     let relative = path_1.starts_with("/./");
-    let prefix = req_prefix.trim_start_matches("/").trim_end_matches("/");
-    let decoded_path = percent_encoding::percent_decode_str(req_path).decode_utf8()?;
-    let mut path_2 = decoded_path
-        .trim_start_matches("/")
-        .trim_start_matches(prefix)
-        .trim_start_matches("/")
-        .to_string();
-    loop {
-        let tmp = path_2
-            .replace("/../", "/")
-            .replace("/./", "/")
-            .replace("//", "/");
-        let cleaned = path_2 == tmp;
-        path_2 = tmp;
-        if cleaned {
-            break;
-        }
-    }
-    path_2 = path_2
-        .trim_start_matches("../")
-        .trim_start_matches("./")
-        .to_string();
+    let path_2 = clean_path(req_path, req_prefix)?;
     let local_path = std::path::Path::new(path_1)
         .join(path_2)
         .as_path()
@@ -337,6 +313,31 @@ fn build_local_path(
     } else {
         Ok(local_path)
     }
+}
+
+fn clean_path(raw_path: &str, prefix: &str) -> Result<String, Box<dyn std::error::Error>> {
+    let decoded_path = percent_encoding::percent_decode_str(raw_path).decode_utf8()?;
+    let mut target_path = decoded_path
+        .trim_start_matches("/")
+        .trim_start_matches(prefix.trim_start_matches("/").trim_end_matches("/"))
+        .trim_start_matches("/")
+        .to_string();
+    loop {
+        let tmp = target_path
+            .replace("/../", "/")
+            .replace("/./", "/")
+            .replace("//", "/");
+        let cleaned = target_path == tmp;
+        target_path = tmp;
+        if cleaned {
+            break;
+        }
+    }
+    target_path = target_path
+        .trim_start_matches("../")
+        .trim_start_matches("./")
+        .to_string();
+    Ok(target_path)
 }
 
 #[test]
@@ -467,7 +468,7 @@ fn test_buid_url() {
             src: "http://127.0.0.1/images",
             req_prefix: "foo",
             req_path: "foo/犬.gif",
-            want: "http://127.0.0.1/images/犬.gif",
+            want: "http://127.0.0.1/images/%E7%8A%AC.gif",
         },
         Case {
             src: "http://127.0.0.1/images",
@@ -484,7 +485,7 @@ fn test_buid_url() {
     ];
     for c in cases {
         let uri = c.src.parse::<axum::http::uri::Uri>().expect("case bug");
-        let got = build_url(&uri, c.req_prefix, c.req_path);
+        let got = build_url(&uri, c.req_prefix, c.req_path).expect("error");
         assert_eq!(got, c.want, "case: {c:?}");
     }
 }
