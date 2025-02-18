@@ -306,17 +306,32 @@ fn build_local_path(
     let relative = path_1.starts_with("/./");
     let prefix = req_prefix.trim_start_matches("/").trim_end_matches("/");
     let decoded_path = percent_encoding::percent_decode_str(req_path).decode_utf8()?;
-    let path_2 = decoded_path
+    let mut path_2 = decoded_path
         .trim_start_matches("/")
         .trim_start_matches(prefix)
-        .trim_start_matches("/");
+        .trim_start_matches("/")
+        .to_string();
+    loop {
+        let tmp = path_2
+            .replace("/../", "/")
+            .replace("/./", "/")
+            .replace("//", "/");
+        let cleaned = path_2 == tmp;
+        path_2 = tmp;
+        if cleaned {
+            break;
+        }
+    }
+    path_2 = path_2
+        .trim_start_matches("../")
+        .trim_start_matches("./")
+        .to_string();
     let local_path = std::path::Path::new(path_1)
         .join(path_2)
         .as_path()
         .to_str()
         .ok_or("failed to build local path from request")?
-        .to_string()
-        .replace("/..", "");
+        .to_string();
     if relative {
         Ok(local_path.trim_start_matches("/./").to_string())
     } else {
@@ -554,6 +569,13 @@ fn test_buid_local_path() {
             req_path: "foo/../../etc/passwd",
             error: false,
             want: "/var/lib/images/etc/passwd",
+        },
+        Case {
+            src: "file://localhost/var/lib/images",
+            req_prefix: "foo",
+            req_path: "foo/.//....//..../etc/passwd",
+            error: false,
+            want: "/var/lib/images/..../..../etc/passwd",
         },
     ];
     for c in cases {
