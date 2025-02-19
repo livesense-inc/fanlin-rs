@@ -10,6 +10,7 @@ use std::path::Path;
 pub struct Provider {
     pub path: String,
     pub src: String,
+    pub fallback_path: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
