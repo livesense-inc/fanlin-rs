@@ -119,7 +119,7 @@ impl State {
         } else {
             match reader.format() {
                 Some(f) => f,
-                None => return Err(Box::from("unknown format")),
+                None => return self.process_unknown_format(reader.into_inner().into_inner()),
             }
         };
         if params.as_is() {
@@ -254,6 +254,24 @@ impl State {
             encoder.encode_frames(frames.into_iter())?;
         }
         Ok((ImageFormat::Gif.to_mime_type(), buffer.into_inner()))
+    }
+
+    fn process_unknown_format(
+        &self,
+        original: &Vec<u8>,
+    ) -> Result<(&'static str, Vec<u8>), Box<dyn std::error::Error>> {
+        // https://docs.rs/resvg/latest/resvg/
+        // https://docs.rs/usvg/latest/usvg/struct.Tree.html
+        let tree = {
+            let opt = resvg::usvg::Options::default();
+            resvg::usvg::Tree::from_data(original, &opt).map_err(|_err| "unknown format")?
+        };
+        let buf = {
+            let mut opt = resvg::usvg::WriteOptions::default();
+            opt.indent = resvg::usvg::Indent::None;
+            tree.to_string(&opt).into_bytes()
+        };
+        Ok(("image/svg+xml", buf))
     }
 }
 

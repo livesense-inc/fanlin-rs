@@ -332,6 +332,11 @@ async fn test_generic_handler() {
             want_type: "image/gif",
         },
         Case {
+            url: "http://127.0.0.1:3000/foo/logo.svg",
+            want_status: StatusCode::OK,
+            want_type: "image/svg+xml",
+        },
+        Case {
             url: "http://127.0.0.1:3000/foo/lenna.gif?w=300&h=200&webp=true",
             want_status: StatusCode::OK,
             want_type: "image/webp",
