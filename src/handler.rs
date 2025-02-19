@@ -263,12 +263,12 @@ impl State {
         // https://docs.rs/resvg/latest/resvg/
         // https://docs.rs/usvg/latest/usvg/struct.Tree.html
         let tree = {
-            let opt = resvg::usvg::Options::default();
-            resvg::usvg::Tree::from_data(original, &opt).map_err(|_err| "unknown format")?
+            let opt = usvg::Options::default();
+            usvg::Tree::from_data(original, &opt).map_err(|_err| "unknown format")?
         };
         let buf = {
-            let mut opt = resvg::usvg::WriteOptions::default();
-            opt.indent = resvg::usvg::Indent::None;
+            let mut opt = usvg::WriteOptions::default();
+            opt.indent = usvg::Indent::None;
             tree.to_string(&opt).into_bytes()
         };
         Ok(("image/svg+xml", buf))
