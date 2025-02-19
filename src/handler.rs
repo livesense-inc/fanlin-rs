@@ -69,7 +69,7 @@ impl State {
     pub async fn with_fallback(
         &mut self,
         path: &Option<String>,
-        providers: &Vec<config::Provider>,
+        providers: &[config::Provider],
     ) -> Result<(), Box<dyn std::error::Error>> {
         if let Some(path) = path {
             if let Some(img) = self.get_image(path).await? {
