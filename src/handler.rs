@@ -8,28 +8,33 @@ use image::{
     AnimationDecoder, DynamicImage, Frame, ImageBuffer, ImageDecoder, ImageFormat, ImageReader,
     Limits, Rgba, RgbaImage,
 };
+use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct State {
     router: matchit::Router<Provider>,
     client: infra::Client,
-    fallback_image: Option<Vec<u8>>,
+    fallback_images: HashMap<String, Vec<u8>>,
+    fallback_path: String,
 }
 
 #[derive(Clone, Debug)]
 struct Provider {
     path: String,
     src: axum::http::uri::Uri,
+    fallback_path: String,
 }
 
 impl State {
     pub fn new(providers: Vec<config::Provider>, client: infra::Client) -> Self {
         let router = Self::make_router(providers);
-        let fallback_image = None;
+        let fallback_images: HashMap<String, Vec<u8>> = HashMap::new();
+        let fallback_path = "".to_string();
         Self {
             router,
             client,
-            fallback_image,
+            fallback_images,
+            fallback_path,
         }
     }
 
@@ -48,7 +53,12 @@ impl State {
             let mut prefix = path.clone();
             prefix.insert(0, '/');
             prefix.push_str("/{*p}");
-            let provider = Provider { path, src };
+            let fallback_path = p.fallback_path.clone().map_or("".to_string(), |v| v);
+            let provider = Provider {
+                path,
+                src,
+                fallback_path,
+            };
             router
                 .insert(prefix, provider)
                 .expect("failed to make router with providers");
@@ -56,19 +66,48 @@ impl State {
         router
     }
 
-    pub async fn with_fallback(&mut self, path: &str) -> Result<(), Box<dyn std::error::Error>> {
-        self.fallback_image = self.get_image(path).await?;
+    pub async fn with_fallback(
+        &mut self,
+        path: &Option<String>,
+        providers: &Vec<config::Provider>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        if let Some(path) = path {
+            if let Some(img) = self.get_image(path).await? {
+                let _ = self.fallback_images.insert(path.clone(), img);
+                self.fallback_path = path.clone();
+            }
+        }
+        for provider in providers.iter() {
+            if let Some(path) = &provider.fallback_path {
+                if let Some(img) = self.get_image(path.as_str()).await? {
+                    let _ = self.fallback_images.insert(path.clone(), img);
+                }
+            }
+        }
         Ok(())
     }
 
     pub fn fallback(
         &self,
+        req_path: &str,
         params: &query::Query,
         content: content::Format,
     ) -> Result<(&'static str, Vec<u8>), Box<dyn std::error::Error>> {
-        match &self.fallback_image {
-            Some(img) => self.process_image(img, params, content),
-            None => Err(Box::from("fallback image uninitialized")),
+        match self.router.at(req_path) {
+            Ok(matched) => {
+                let provider = matched.value;
+                match self.fallback_images.get(&provider.fallback_path) {
+                    Some(img) => self.process_image(img, params, content),
+                    None => match self.fallback_images.get(&self.fallback_path) {
+                        Some(img) => self.process_image(img, params, content),
+                        None => Err(Box::from("fallback image uninitialized")),
+                    },
+                }
+            }
+            Err(_) => match self.fallback_images.get(&self.fallback_path) {
+                Some(img) => self.process_image(img, params, content),
+                None => Err(Box::from("fallback image uninitialized")),
+            },
         }
     }
 

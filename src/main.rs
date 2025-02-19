@@ -52,14 +52,13 @@ async fn main() {
         .expect("failed to bind address");
     let cli = infra::Client::new(&cfg).await;
     let mut state = handler::State::new(cfg.providers.clone(), cli);
-    if let Some(p) = cfg.fallback_path {
-        state.with_fallback(p.as_str()).await.map_or_else(
-            |err| {
-                tracing::warn!("failed to initialize fallback image; {err:?}");
-            },
+    state
+        .with_fallback(&cfg.fallback_path, &cfg.providers)
+        .await
+        .map_or_else(
+            |err| tracing::warn!("failed to initialize fallback image; {err:?}"),
             |_| {},
-        )
-    };
+        );
     // https://github.com/tower-rs/tower-http/blob/main/examples/axum-key-value-store/src/main.rs
     // https://docs.rs/axum/latest/axum/middleware/index.html
     // https://docs.rs/tower-http/latest/tower_http/trace/index.html
@@ -126,6 +125,7 @@ async fn generic_handler(
             None => {
                 return fallback_or_message(
                     &state,
+                    path,
                     &params,
                     accepted_format,
                     StatusCode::NOT_FOUND,
@@ -137,6 +137,7 @@ async fn generic_handler(
             tracing::error!("failled to get an original image; {err:?}");
             return fallback_or_message(
                 &state,
+                path,
                 &params,
                 accepted_format,
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -156,6 +157,7 @@ async fn generic_handler(
             tracing::error!("failed to process an image; {err:?}");
             fallback_or_message(
                 &state,
+                path,
                 &params,
                 accepted_format,
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -199,12 +201,13 @@ fn try_create_header(
 
 fn fallback_or_message(
     state: &handler::State,
+    req_path: &str,
     params: &query::Query,
     content: content::Format,
     status: StatusCode,
     message: &'static str,
 ) -> (StatusCode, header::HeaderMap, Body) {
-    match state.fallback(params, content) {
+    match state.fallback(req_path, params, content) {
         Ok((mime_type, processed)) => {
             let headers = create_header(mime_type, None);
             (status, headers, Body::from(processed))
@@ -274,14 +277,17 @@ async fn test_generic_handler() {
         config::Provider {
             path: "foo".to_string(),
             src: format!("s3://{bucket}/images"),
+            fallback_path: None,
         },
         config::Provider {
             path: "bar".to_string(),
             src: format!("http://127.0.0.1:{port}/images"),
+            fallback_path: None,
         },
         config::Provider {
             path: "baz".to_string(),
             src: "file://localhost/./images".to_string(),
+            fallback_path: None,
         },
     ]);
     let state = std::sync::Arc::new(handler::State::new(providers, client));
