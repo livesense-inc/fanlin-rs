@@ -55,7 +55,7 @@ impl State {
             prefix.insert(0, '/');
             prefix.push_str("/{*p}");
             let fallback_path = p.fallback_path.clone().map_or("".to_string(), |v| v);
-            let success_even_no_content = p.success_even_no_content.map_or(false, |v| v);
+            let success_even_no_content = p.success_even_no_content.is_some_and(|v| v);
             let provider = Provider {
                 path,
                 src,
@@ -117,7 +117,7 @@ impl State {
     pub fn treat_as_success_even_no_content(&self, req_path: &str) -> bool {
         self.router
             .at(req_path)
-            .map_or(false, |v| v.value.success_even_no_content)
+            .is_ok_and(|v| v.value.success_even_no_content)
     }
 
     pub async fn get_image(
