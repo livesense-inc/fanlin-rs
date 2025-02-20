@@ -123,12 +123,17 @@ async fn generic_handler(
                 img
             }
             None => {
+                let status_code = if state.treat_as_success_even_no_content(path) {
+                    StatusCode::OK
+                } else {
+                    StatusCode::NOT_FOUND
+                };
                 return fallback_or_message(
                     &state,
                     path,
                     &params,
                     accepted_format,
-                    StatusCode::NOT_FOUND,
+                    status_code,
                     "not found",
                 );
             }
@@ -278,16 +283,19 @@ async fn test_generic_handler() {
             path: "foo".to_string(),
             src: format!("s3://{bucket}/images"),
             fallback_path: None,
+            success_even_no_content: None,
         },
         config::Provider {
             path: "bar".to_string(),
             src: format!("http://127.0.0.1:{port}/images"),
             fallback_path: None,
+            success_even_no_content: None,
         },
         config::Provider {
             path: "baz".to_string(),
             src: "file://localhost/./images".to_string(),
             fallback_path: None,
+            success_even_no_content: None,
         },
     ]);
     let state = std::sync::Arc::new(handler::State::new(providers, client));

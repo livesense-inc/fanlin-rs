@@ -23,6 +23,7 @@ struct Provider {
     path: String,
     src: axum::http::uri::Uri,
     fallback_path: String,
+    success_even_no_content: bool,
 }
 
 impl State {
@@ -54,10 +55,12 @@ impl State {
             prefix.insert(0, '/');
             prefix.push_str("/{*p}");
             let fallback_path = p.fallback_path.clone().map_or("".to_string(), |v| v);
+            let success_even_no_content = p.success_even_no_content.is_some_and(|v| v);
             let provider = Provider {
                 path,
                 src,
                 fallback_path,
+                success_even_no_content,
             };
             router
                 .insert(prefix, provider)
@@ -109,6 +112,12 @@ impl State {
                 None => Err(Box::from("fallback image uninitialized")),
             },
         }
+    }
+
+    pub fn treat_as_success_even_no_content(&self, req_path: &str) -> bool {
+        self.router
+            .at(req_path)
+            .is_ok_and(|v| v.value.success_even_no_content)
     }
 
     pub async fn get_image(

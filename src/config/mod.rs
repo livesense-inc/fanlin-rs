@@ -11,6 +11,7 @@ pub struct Provider {
     pub path: String,
     pub src: String,
     pub fallback_path: Option<String>,
+    pub success_even_no_content: Option<bool>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
