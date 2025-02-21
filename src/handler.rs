@@ -189,6 +189,11 @@ impl State {
             }
             Err(_) => DynamicImage::from_decoder(decoder)?,
         };
+        if params.grayscale() {
+            img = img.grayscale();
+        } else if params.inverse() {
+            img.invert();
+        }
         if let Some((width, height)) = params.dimensions() {
             // https://docs.rs/image/latest/image/struct.ImageBuffer.html
             if width != img.width() || height != img.height() {
@@ -208,6 +213,12 @@ impl State {
                     (height.abs_diff(img.height()) / 2) as i64,
                 );
                 img = DynamicImage::ImageRgba8(bg);
+            }
+        }
+        {
+            let sigma = params.blur();
+            if sigma > 0.0 {
+                img = img.blur(sigma);
             }
         }
         let mut buffer = std::io::Cursor::new(Vec::new());
@@ -270,6 +281,11 @@ impl State {
                     return Frame::new(RgbaImage::from_pixel(1, 1, Rgba([32, 32, 32, 255])));
                 }
                 let mut img = DynamicImage::ImageRgba8(result.unwrap().into_buffer());
+                if params.grayscale() {
+                    img = img.grayscale();
+                } else if params.inverse() {
+                    img.invert();
+                }
                 if let Some((width, height)) = params.dimensions() {
                     // https://docs.rs/image/latest/image/enum.DynamicImage.html
                     if width != img.width() || height != img.height() {
