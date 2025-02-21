@@ -28,6 +28,7 @@ impl PartialEq for Query {
 
 const DEFAULT_COLOR: u8 = 32;
 const DEFAULT_QUALITY: u8 = 85;
+const DEFAULT_BLUR_SIGMA: f32 = 0.0;
 const WIDTH_RANGE: std::ops::RangeInclusive<u32> = 20..=2000;
 const HEIGHT_RANGE: std::ops::RangeInclusive<u32> = 20..=1000;
 
@@ -68,7 +69,8 @@ impl Query {
     }
 
     pub fn blur(&self) -> f32 {
-        self.blur.map_or(0.0, |v| (v as f32).clamp(10.0, 20.0))
+        self.blur
+            .map_or(DEFAULT_BLUR_SIGMA, |v| (v as f32).clamp(10.0, 20.0))
     }
 
     pub fn grayscale(&self) -> bool {
@@ -89,7 +91,7 @@ impl Query {
 
     pub fn as_is(&self) -> bool {
         self.dimensions().is_none()
-            && self.blur() > 0.0
+            && self.blur() == DEFAULT_BLUR_SIGMA
             && !self.grayscale()
             && !self.inverse()
             && !self.use_avif()
@@ -123,6 +125,9 @@ fn test_query() {
                 assert_eq!(got.fill_color(), (32, 32, 32));
                 assert_eq!(got.quality(), 85);
                 assert!(!got.cropping());
+                assert_eq!(got.blur(), 0.0);
+                assert!(!got.grayscale());
+                assert!(!got.inverse());
                 assert!(!got.use_avif());
                 assert!(!got.use_webp());
                 assert!(got.as_is());
