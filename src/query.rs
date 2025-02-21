@@ -7,6 +7,9 @@ pub struct Query {
     rgb: Option<String>,
     quality: Option<u8>,
     crop: Option<bool>,
+    blur: Option<u8>,
+    grayscale: Option<bool>,
+    inverse: Option<bool>,
     avif: Option<bool>,
     webp: Option<bool>,
 }
@@ -25,6 +28,7 @@ impl PartialEq for Query {
 
 const DEFAULT_COLOR: u8 = 32;
 const DEFAULT_QUALITY: u8 = 85;
+const DEFAULT_BLUR_SIGMA: f32 = 0.0;
 const WIDTH_RANGE: std::ops::RangeInclusive<u32> = 20..=2000;
 const HEIGHT_RANGE: std::ops::RangeInclusive<u32> = 20..=1000;
 
@@ -64,6 +68,19 @@ impl Query {
         self.crop.is_some_and(|v| v)
     }
 
+    pub fn blur(&self) -> f32 {
+        self.blur
+            .map_or(DEFAULT_BLUR_SIGMA, |v| (v as f32).clamp(10.0, 20.0))
+    }
+
+    pub fn grayscale(&self) -> bool {
+        self.grayscale.is_some_and(|v| v)
+    }
+
+    pub fn inverse(&self) -> bool {
+        self.inverse.is_some_and(|v| v)
+    }
+
     pub fn use_avif(&self) -> bool {
         self.avif.is_some_and(|v| v)
     }
@@ -73,7 +90,12 @@ impl Query {
     }
 
     pub fn as_is(&self) -> bool {
-        self.dimensions().is_none() && !self.use_avif() && !self.use_webp()
+        self.dimensions().is_none()
+            && self.blur() == DEFAULT_BLUR_SIGMA
+            && !self.grayscale()
+            && !self.inverse()
+            && !self.use_avif()
+            && !self.use_webp()
     }
 
     pub fn unsupported_scale_size(&self) -> bool {
@@ -103,6 +125,9 @@ fn test_query() {
                 assert_eq!(got.fill_color(), (32, 32, 32));
                 assert_eq!(got.quality(), 85);
                 assert!(!got.cropping());
+                assert_eq!(got.blur(), 0.0);
+                assert!(!got.grayscale());
+                assert!(!got.inverse());
                 assert!(!got.use_avif());
                 assert!(!got.use_webp());
                 assert!(got.as_is());
@@ -256,6 +281,66 @@ fn test_query() {
         },
         Case {
             query_string: "http://127.0.0.1:3000?crop=foo",
+            error: true,
+            want: Query {
+                ..Default::default()
+            },
+            assert: |_| {},
+        },
+        Case {
+            query_string: "http://127.0.0.1:3000?blur=10",
+            error: false,
+            want: Query {
+                blur: Some(10),
+                ..Default::default()
+            },
+            assert: |got| {
+                assert_eq!(got.blur(), 10.0);
+                assert!(!got.as_is());
+            },
+        },
+        Case {
+            query_string: "http://127.0.0.1:3000?blur=foo",
+            error: true,
+            want: Query {
+                ..Default::default()
+            },
+            assert: |_| {},
+        },
+        Case {
+            query_string: "http://127.0.0.1:3000?grayscale=true",
+            error: false,
+            want: Query {
+                grayscale: Some(true),
+                ..Default::default()
+            },
+            assert: |got| {
+                assert!(got.grayscale());
+                assert!(!got.as_is());
+            },
+        },
+        Case {
+            query_string: "http://127.0.0.1:3000?grayscale=foo",
+            error: true,
+            want: Query {
+                ..Default::default()
+            },
+            assert: |_| {},
+        },
+        Case {
+            query_string: "http://127.0.0.1:3000?inverse=true",
+            error: false,
+            want: Query {
+                inverse: Some(true),
+                ..Default::default()
+            },
+            assert: |got| {
+                assert!(got.inverse());
+                assert!(!got.as_is());
+            },
+        },
+        Case {
+            query_string: "http://127.0.0.1:3000?inverse=foo",
             error: true,
             want: Query {
                 ..Default::default()

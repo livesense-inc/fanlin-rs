@@ -55,6 +55,9 @@ Options:
 | `rgb` | fill color | `rgb=32,32,32` |
 | `quality` | encoding quality | `quality=85` |
 | `crop` | cropping | `crop=true` |
+| `blur` | blur image with sigma | `blur=10` |
+| `grayscale` | grayscale colors | `grayscale=true` |
+| `inverse` | inverse colors | `inverse=true` |
 | `avif` | encoding format | `avif=true` |
 | `webp` | encoding format | `webp=true` |
 
