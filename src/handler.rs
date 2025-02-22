@@ -319,6 +319,8 @@ impl State {
         Ok((ImageFormat::Gif.to_mime_type(), buffer.into_inner()))
     }
 
+    const MIME_TYPE_SVG: &'static str = "image/svg+xml";
+
     fn process_unknown_format(
         &self,
         original: &[u8],
@@ -336,7 +338,7 @@ impl State {
             };
             tree.to_string(&opt).into_bytes()
         };
-        Ok(("image/svg+xml", buf))
+        Ok((Self::MIME_TYPE_SVG, buf))
     }
 }
 
