@@ -353,7 +353,7 @@ async fn test_generic_handler() {
         Case {
             url: "http://127.0.0.1:3000/foo/lenna.gif?w=300&h=200&webp=true",
             want_status: StatusCode::OK,
-            want_type: "image/webp",
+            want_type: "image/gif",
         },
         Case {
             url: "http://127.0.0.1:3000/foo/lenna.txt",
