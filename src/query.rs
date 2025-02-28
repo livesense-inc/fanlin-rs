@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-#[derive(Clone, Debug, Default, Eq, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize)]
 pub struct Query {
     w: Option<u32>,
     h: Option<u32>,
@@ -12,18 +12,6 @@ pub struct Query {
     inverse: Option<bool>,
     avif: Option<bool>,
     webp: Option<bool>,
-}
-
-impl PartialEq for Query {
-    fn eq(&self, rhs: &Self) -> bool {
-        self.w == rhs.w
-            && self.h == rhs.h
-            && self.rgb == rhs.rgb
-            && self.quality == rhs.quality
-            && self.crop == rhs.crop
-            && self.avif == rhs.avif
-            && self.webp == rhs.webp
-    }
 }
 
 const DEFAULT_COLOR: u8 = 32;
