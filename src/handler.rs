@@ -52,7 +52,9 @@ impl State {
                 .trim_end_matches("/")
                 .to_string();
             let mut prefix = path.clone();
-            prefix.insert(0, '/');
+            if !prefix.is_empty() {
+                prefix.insert(0, '/');
+            }
             prefix.push_str("/{*p}");
             let fallback_path = p.fallback_path.clone().map_or("".to_string(), |v| v);
             let success_even_no_content = p.success_even_no_content.is_some_and(|v| v);
