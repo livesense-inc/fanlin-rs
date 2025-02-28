@@ -364,8 +364,11 @@ fn build_bucket_and_object_key(
     }
 }
 
-const ASCII_SET: &percent_encoding::AsciiSet =
-    &percent_encoding::NON_ALPHANUMERIC.remove(b'.').remove(b'/');
+const ASCII_SET: &percent_encoding::AsciiSet = &percent_encoding::NON_ALPHANUMERIC
+    .remove(b'.')
+    .remove(b'/')
+    .remove(b'-')
+    .remove(b'_');
 
 fn build_url(
     src_uri: &axum::http::uri::Uri,
