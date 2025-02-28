@@ -32,26 +32,38 @@ struct Args {
 
 #[tokio::main]
 async fn main() {
-    // https://docs.rs/tracing-subscriber/latest/tracing_subscriber/fmt/struct.SubscriberBuilder.html
-    let logger = tracing_subscriber::fmt::layer()
-        .with_target(false)
-        .json()
-        .with_span_list(false)
-        .flatten_event(true);
-    tracing_subscriber::registry()
-        .with(logger.with_filter(tracing_subscriber::filter::LevelFilter::INFO))
-        .init();
-    let args = Args::parse();
-    let cfg = match args.json {
-        Some(j) => config::Config::from_reader(j.as_bytes()).expect("failed to read JSON"),
-        None => config::Config::from_file(args.conf).expect("failed to read a config file"),
+    let cfg = {
+        let args = Args::parse();
+        match args.json {
+            Some(j) => config::Config::from_reader(j.as_bytes()).expect("failed to read JSON"),
+            None => config::Config::from_file(args.conf).expect("failed to read a config file"),
+        }
     };
-    let listen_addr = format!("{}:{}", &cfg.bind_addr, &cfg.port);
-    let listener = tokio::net::TcpListener::bind(&listen_addr)
-        .await
-        .expect("failed to bind address");
-    let cli = infra::Client::new(&cfg).await;
-    let mut state = handler::State::new(cfg.providers.clone(), cli);
+    {
+        // https://docs.rs/tracing-subscriber/latest/tracing_subscriber/fmt/struct.SubscriberBuilder.html
+        let logger = tracing_subscriber::fmt::layer()
+            .with_target(false)
+            .json()
+            .with_span_list(false)
+            .flatten_event(true);
+        let level = cfg.suppress_logging.map_or_else(
+            || tracing_subscriber::filter::LevelFilter::INFO,
+            |v| {
+                if v {
+                    tracing_subscriber::filter::LevelFilter::WARN
+                } else {
+                    tracing_subscriber::filter::LevelFilter::INFO
+                }
+            },
+        );
+        tracing_subscriber::registry()
+            .with(logger.with_filter(level))
+            .init();
+    }
+    let mut state = {
+        let cli = infra::Client::new(&cfg).await;
+        handler::State::new(cfg.providers.clone(), cli)
+    };
     state
         .with_fallback(&cfg.fallback_path, &cfg.providers)
         .await
@@ -90,6 +102,10 @@ async fn main() {
                 )),
         )
         .with_state(std::sync::Arc::new(state));
+    let listen_addr = format!("{}:{}", &cfg.bind_addr, &cfg.port);
+    let listener = tokio::net::TcpListener::bind(&listen_addr)
+        .await
+        .expect("failed to bind address");
     tracing::info!("serving on {listen_addr}");
     axum::serve(listener, router)
         .with_graceful_shutdown(shutdown_signal())

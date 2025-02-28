@@ -26,6 +26,7 @@ pub struct Config {
     pub bind_addr: String,
     pub max_clients: usize,
     pub fallback_path: Option<String>,
+    pub suppress_logging: Option<bool>,
     pub client: Client,
     pub providers: Vec<Provider>,
 }
