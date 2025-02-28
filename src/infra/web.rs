@@ -36,6 +36,10 @@ impl Client {
                 if err.status() == Some(StatusCode::NOT_FOUND) {
                     return Ok(None);
                 }
+                if err.is_connect() {
+                    tracing::warn!("{url} {err:?}");
+                    return Ok(None);
+                }
                 Err(Box::from(err))
             }
         }
