@@ -313,6 +313,12 @@ async fn test_generic_handler() {
             fallback_path: None,
             success_even_no_content: None,
         },
+        config::Provider {
+            path: "/".to_string(),
+            src: "file://localhost/./images".to_string(),
+            fallback_path: None,
+            success_even_no_content: None,
+        },
     ]);
     let state = std::sync::Arc::new(handler::State::new(providers, client));
     struct Case {
@@ -400,6 +406,11 @@ async fn test_generic_handler() {
             url: "http://127.0.0.1:3000/baz/who.jpg",
             want_status: StatusCode::NOT_FOUND,
             want_type: "text/plain; charset=utf-8",
+        },
+        Case {
+            url: "http://127.0.0.1:3000/lenna.jpg",
+            want_status: StatusCode::OK,
+            want_type: "image/jpeg",
         },
     ];
     for c in cases {
