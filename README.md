@@ -80,11 +80,11 @@ Model name:                           13th Gen Intel(R) Core(TM) i7-13700HX
 
 ### fanlin-go
 ```
-$ echo 'GET http://127.0.0.1:3000/Lenna.jpg?w=300&h=200' | vegeta attack -header='user-agent: vegeta' -rate=50 -duration=180s | tee results.bin | vegeta report
-Requests      [total, rate, throughput]         9000, 50.01, 49.98
-Duration      [total, attack, wait]             3m0s, 3m0s, 91.016ms
-Latencies     [min, mean, 50, 90, 95, 99, max]  86.51ms, 92.629ms, 91.867ms, 97.089ms, 99.1ms, 103.552ms, 121.274ms
-Bytes In      [total, mean]                     81414000, 9046.00
+echo 'GET http://127.0.0.1:3000/baz/Lenna.jpg?w=300&h=200&rgb=32,32,32' | vegeta attack -header='user-agent: vegeta' -rate=50 -duration=180s | tee results.bin | vegeta report
+Requests      [total, rate, throughput]         9000, 50.01, 50.00
+Duration      [total, attack, wait]             3m0s, 3m0s, 30.845ms
+Latencies     [min, mean, 50, 90, 95, 99, max]  28.919ms, 30.867ms, 30.842ms, 31.891ms, 32.196ms, 32.842ms, 52.06ms
+Bytes In      [total, mean]                     87183000, 9687.00
 Bytes Out     [total, mean]                     0, 0.00
 Success       [ratio]                           100.00%
 Status Codes  [code:count]                      200:9000
@@ -92,26 +92,14 @@ Error Set:
 ```
 
 ```
-$ echo 'GET http://127.0.0.1:3000/Lenna.jpg?w=300&h=200&webp=true&quality=20' | vegeta attack -header='user-agent: vegeta' -rate=50 -duration=180s | tee results.bin | vegeta report
-Requests      [total, rate, throughput]         9000, 50.01, 49.98
-Duration      [total, attack, wait]             3m0s, 3m0s, 92.906ms
-Latencies     [min, mean, 50, 90, 95, 99, max]  90.53ms, 98.425ms, 97.79ms, 103.449ms, 105.209ms, 109.553ms, 123.506ms
-Bytes In      [total, mean]                     24930000, 2770.00
+$ echo 'GET http://127.0.0.1:3000/baz/Lenna.jpg?w=300&h=200&rgb=32,32,32&webp=true&quality=20' | vegeta attack -header='user-agent: vegeta' -rate=50 -duration=180s | tee results.bin | vegeta report
+Requests      [total, rate, throughput]         9000, 50.01, 50.00
+Duration      [total, attack, wait]             3m0s, 3m0s, 35.812ms
+Latencies     [min, mean, 50, 90, 95, 99, max]  34.405ms, 36.405ms, 36.351ms, 37.472ms, 37.768ms, 38.424ms, 41.586ms
+Bytes In      [total, mean]                     24480000, 2720.00
 Bytes Out     [total, mean]                     0, 0.00
 Success       [ratio]                           100.00%
 Status Codes  [code:count]                      200:9000
-Error Set:
-```
-
-```
-$ echo 'GET http://127.0.0.1:3000/Lenna.jpg?w=300&h=200' | vegeta attack -header='user-agent: vegeta' -rate=110 -duration=180s | tee results.bin | vegeta report
-Requests      [total, rate, throughput]         19800, 110.01, 109.93
-Duration      [total, attack, wait]             3m0s, 3m0s, 117.175ms
-Latencies     [min, mean, 50, 90, 95, 99, max]  100.099ms, 148.698ms, 146.996ms, 166.39ms, 172.475ms, 194.229ms, 638.502ms
-Bytes In      [total, mean]                     179110800, 9046.00
-Bytes Out     [total, mean]                     0, 0.00
-Success       [ratio]                           100.00%
-Status Codes  [code:count]                      200:19800
 Error Set:
 ```
 
