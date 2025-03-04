@@ -15,7 +15,7 @@ pub struct Query {
 }
 
 const DEFAULT_COLOR: u8 = 32;
-const DEFAULT_QUALITY: u8 = 85;
+const DEFAULT_QUALITY: u8 = 75;
 const DEFAULT_BLUR_SIGMA: f32 = 0.0;
 const WIDTH_RANGE: std::ops::RangeInclusive<u32> = 20..=2000;
 const HEIGHT_RANGE: std::ops::RangeInclusive<u32> = 20..=1000;
@@ -111,7 +111,7 @@ fn test_query() {
             assert: |got| {
                 assert_eq!(got.dimensions(), None);
                 assert_eq!(got.fill_color(), (32, 32, 32));
-                assert_eq!(got.quality(), 85);
+                assert_eq!(got.quality(), 75);
                 assert!(!got.cropping());
                 assert_eq!(got.blur(), 0.0);
                 assert!(!got.grayscale());
