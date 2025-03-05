@@ -334,28 +334,28 @@ impl State {
         &self,
         original: &[u8],
     ) -> Result<(&'static str, Vec<u8>), Box<dyn std::error::Error>> {
+        let s = if original.len() > 2 && original[0] == 255 && original[1] == 254 {
+            let b = original
+                .chunks(std::mem::size_of::<u16>())
+                .map(|e| u16::from_le_bytes(e.try_into().map_or([0x20, 0x00], |v| v)))
+                .collect::<Vec<_>>();
+            String::from_utf16(&b).map_err(|_| "failed to treat as UTF-16LE")?
+        } else if original.len() > 2 && original[0] == 254 && original[1] == 255 {
+            let b = original
+                .chunks(std::mem::size_of::<u16>())
+                .map(|e| u16::from_be_bytes(e.try_into().map_or([0x00, 0x20], |v| v)))
+                .collect::<Vec<_>>();
+            String::from_utf16(&b).map_err(|_| "failed to treat as UTF-16BE")?
+        } else {
+            std::str::from_utf8(original)
+                .map_err(|_| "unknown format")?
+                .to_string()
+        };
         // https://docs.rs/resvg/latest/resvg/
         // https://docs.rs/usvg/latest/usvg/struct.Tree.html
         let opt = usvg::Options::default();
-        match usvg::Tree::from_data(original, &opt) {
-            Ok(_) => {}
-            Err(_) => {
-                let b = original
-                    .chunks(std::mem::size_of::<u16>())
-                    .map(|e| {
-                        if original.len() > 2 && original[0] == 255 && original[1] == 254 {
-                            // U+FEFF
-                            u16::from_le_bytes(e.try_into().map_or([0x20, 0x00], |v| v))
-                        } else {
-                            u16::from_be_bytes(e.try_into().map_or([0x00, 0x20], |v| v))
-                        }
-                    })
-                    .collect::<Vec<_>>();
-                let s = String::from_utf16_lossy(&b);
-                usvg::Tree::from_data(s.as_bytes(), &opt).map_err(|_err| "unknown format")?;
-            }
-        };
-        Ok((Self::MIME_TYPE_SVG, original.to_owned()))
+        usvg::Tree::from_str(s.as_str(), &opt).map_err(|_err| "failed to parse as SVG")?;
+        Ok((Self::MIME_TYPE_SVG, s.into_bytes()))
     }
 }
 
