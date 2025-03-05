@@ -255,8 +255,15 @@ impl State {
                     img.write_with_encoder(encoder)?;
                 } else {
                     // https://docs.rs/webp/latest/webp/struct.Encoder.html
-                    let encoder = webp::Encoder::from_image(&img)?;
-                    buffer = std::io::Cursor::new(encoder.encode(q as f32).to_vec());
+                    match webp::Encoder::from_image(&img) {
+                        Ok(encoder) => {
+                            buffer = std::io::Cursor::new(encoder.encode(q as f32).to_vec());
+                        }
+                        Err(_) => {
+                            let e = image::codecs::webp::WebPEncoder::new_lossless(&mut buffer);
+                            img.write_with_encoder(e)?;
+                        }
+                    };
                 }
             }
             _ => img.write_to(&mut buffer, format)?,
