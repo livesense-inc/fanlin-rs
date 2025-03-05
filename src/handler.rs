@@ -336,18 +336,11 @@ impl State {
     ) -> Result<(&'static str, Vec<u8>), Box<dyn std::error::Error>> {
         // https://docs.rs/resvg/latest/resvg/
         // https://docs.rs/usvg/latest/usvg/struct.Tree.html
-        let tree = {
+        let _tree = {
             let opt = usvg::Options::default();
             usvg::Tree::from_data(original, &opt).map_err(|_err| "unknown format")?
         };
-        let buf = {
-            let opt = usvg::WriteOptions {
-                indent: usvg::Indent::None,
-                ..usvg::WriteOptions::default()
-            };
-            tree.to_string(&opt).into_bytes()
-        };
-        Ok((Self::MIME_TYPE_SVG, buf))
+        Ok((Self::MIME_TYPE_SVG, original.to_owned()))
     }
 }
 
