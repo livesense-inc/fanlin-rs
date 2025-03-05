@@ -336,9 +336,24 @@ impl State {
     ) -> Result<(&'static str, Vec<u8>), Box<dyn std::error::Error>> {
         // https://docs.rs/resvg/latest/resvg/
         // https://docs.rs/usvg/latest/usvg/struct.Tree.html
-        let _tree = {
-            let opt = usvg::Options::default();
-            usvg::Tree::from_data(original, &opt).map_err(|_err| "unknown format")?
+        let opt = usvg::Options::default();
+        match usvg::Tree::from_data(original, &opt) {
+            Ok(_) => {}
+            Err(_) => {
+                let b = original
+                    .chunks(std::mem::size_of::<u16>())
+                    .map(|e| {
+                        if original.len() > 2 && original[0] == 255 && original[1] == 254 {
+                            // U+FEFF
+                            u16::from_le_bytes(e.try_into().map_or([0x20, 0x00], |v| v))
+                        } else {
+                            u16::from_be_bytes(e.try_into().map_or([0x00, 0x20], |v| v))
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                let s = String::from_utf16_lossy(&b);
+                usvg::Tree::from_data(s.as_bytes(), &opt).map_err(|_err| "unknown format")?;
+            }
         };
         Ok((Self::MIME_TYPE_SVG, original.to_owned()))
     }
