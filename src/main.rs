@@ -155,7 +155,7 @@ async fn generic_handler(
             }
         },
         Err(err) => {
-            tracing::error!("failled to get an original image; {err:?}");
+            tracing::error!("failled to get an original image; {path} {err:?}");
             return fallback_or_message(
                 &state,
                 path,
@@ -175,7 +175,7 @@ async fn generic_handler(
             (StatusCode::OK, headers, Body::from(processed))
         }
         Err(err) => {
-            tracing::error!("failed to process an image; {err:?}");
+            tracing::error!("failed to process an image; {path} {err:?}");
             fallback_or_message(
                 &state,
                 path,
