@@ -248,6 +248,7 @@ impl State {
                 img.write_with_encoder(encoder)?;
             }
             ImageFormat::WebP => {
+                img = DynamicImage::ImageRgba8(img.into_rgba8());
                 let q = params.quality().clamp(1, 100);
                 if q == 100 {
                     // https://docs.rs/image/latest/image/codecs/webp/struct.WebPEncoder.html
