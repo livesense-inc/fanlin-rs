@@ -1,6 +1,6 @@
 [package]
 name = "fanlin-rs"
-version = "0.8.5"
+version = "0.8.6"
 edition = "2021"
 authors = ["Livesense Inc."]
 license-file = "LICENSE"
