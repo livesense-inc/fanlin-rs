@@ -124,7 +124,7 @@ async fn generic_handler(
     State(state): State<std::sync::Arc<handler::State>>,
 ) -> impl IntoResponse {
     if params.unsupported_scale_size() {
-        let headers = create_header(CONTENT_TYPE_TEXT_PLAIN, None);
+        let headers = create_header(CONTENT_TYPE_TEXT_PLAIN, &params, None);
         let message = format!("supported width and height: {}", query::size_range_info());
         return (StatusCode::BAD_REQUEST, headers, Body::from(message));
     }
@@ -171,7 +171,7 @@ async fn generic_handler(
     match state.process_image(&original, &params, accepted_format) {
         Ok((mime_type, processed)) => {
             timer.add("f_process");
-            let headers = create_header(mime_type, Some(timer));
+            let headers = create_header(mime_type, &params, Some(timer));
             (StatusCode::OK, headers, Body::from(processed))
         }
         Err(err) => {
@@ -190,9 +190,10 @@ async fn generic_handler(
 
 fn create_header(
     content_type: &'static str,
+    params: &query::Query,
     timer: Option<simple_server_timing_header::Timer>,
 ) -> header::HeaderMap {
-    match try_create_header(content_type, timer) {
+    match try_create_header(content_type, params, timer) {
         Ok(h) => h,
         Err(err) => {
             tracing::error!("failed to create header; {err:?}");
@@ -203,13 +204,16 @@ fn create_header(
 
 fn try_create_header(
     content_type: &'static str,
+    params: &query::Query,
     timer: Option<simple_server_timing_header::Timer>,
 ) -> Result<header::HeaderMap, Box<dyn std::error::Error>> {
     let mut headers = header::HeaderMap::new();
     let content_type = header::HeaderValue::from_str(content_type)?;
     headers.try_insert(header::CONTENT_TYPE, content_type)?;
-    let vary = header::HeaderValue::from_str(VARY_ACCEPT)?;
-    headers.try_insert(header::VARY, vary)?;
+    if params.use_webp() || params.use_avif() {
+        let vary = header::HeaderValue::from_str(VARY_ACCEPT)?;
+        headers.try_insert(header::VARY, vary)?;
+    }
     if let Some(timer) = timer {
         let server_timing = header::HeaderValue::from_str(timer.header_value().as_str())?;
         headers.try_insert(
@@ -230,11 +234,11 @@ fn fallback_or_message(
 ) -> (StatusCode, header::HeaderMap, Body) {
     match state.fallback(req_path, params, content) {
         Ok((mime_type, processed)) => {
-            let headers = create_header(mime_type, None);
+            let headers = create_header(mime_type, params, None);
             (status, headers, Body::from(processed))
         }
         Err(_err) => {
-            let headers = create_header(CONTENT_TYPE_TEXT_PLAIN, None);
+            let headers = create_header(CONTENT_TYPE_TEXT_PLAIN, params, None);
             (status, headers, Body::from(message))
         }
     }
