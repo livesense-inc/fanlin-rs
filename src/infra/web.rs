@@ -26,7 +26,8 @@ impl Client {
                     return Ok(None);
                 }
                 if !response.status().is_success() {
-                    return Err(Box::from(format!("GET {}: {}", &url, response.status())));
+                    tracing::warn!("{url} {}", response.status());
+                    return Ok(None);
                 }
                 let bytes = response.bytes().await?;
                 Ok(Some(bytes.to_vec()))
@@ -36,11 +37,8 @@ impl Client {
                 if err.status() == Some(StatusCode::NOT_FOUND) {
                     return Ok(None);
                 }
-                if err.is_connect() {
-                    tracing::warn!("{url} {err:?}");
-                    return Ok(None);
-                }
-                Err(Box::from(err))
+                tracing::warn!("{url} {err:?}");
+                Ok(None)
             }
         }
     }
