@@ -375,7 +375,7 @@ impl State {
             return None;
         };
         let (width, height) = match decoder.dimensions() {
-            Some(e) => e,
+            Some((w, h)) => (w as u32, h as u32),
             None => return None,
         };
         let color_space = match decoder.get_input_colorspace() {
@@ -400,11 +400,11 @@ impl State {
         };
         let srgb_prof = lcms2::Profile::new_srgb();
         // https://docs.rs/lcms2/latest/lcms2/struct.Transform.html
-        let t = match lcms2::Transform::<u32, u32>::new(
+        let t = match lcms2::Transform::<[u8; 4], [u8; 3]>::new(
             &orig_prof,
             pixel_format,
             &srgb_prof,
-            lcms2::PixelFormat::RGBA_8,
+            lcms2::PixelFormat::RGB_8,
             lcms2::Intent::Perceptual,
         ) {
             Ok(e) => e,
@@ -412,40 +412,22 @@ impl State {
         };
         let opts = decoder.get_options().jpeg_set_out_colorspace(color_space);
         decoder.set_options(opts);
-        eprintln!("{:?}", decoder.get_output_colorspace());
         let raw = match decoder.decode() {
             Ok(e) => e,
             Err(_) => return None,
         };
-        eprintln!("{}", raw.len());
-        eprintln!("{}, {}, {}, {}", raw[0], raw[1], raw[2], raw[3]);
-        eprintln!("{}, {}, {}, {}", raw[4], raw[5], raw[6], raw[7]);
-        eprintln!("{}, {}, {}, {}", raw[8], raw[9], raw[10], raw[11]);
-        eprintln!("{}, {}, {}, {}", raw[12], raw[13], raw[14], raw[15]);
-        let mut pixels = raw
+        let src = raw
             .chunks(std::mem::size_of::<u32>())
-            .map(|e| u32::from_be_bytes(e.try_into().map_or([0x00, 0x00, 0x00, 0x00], |v| v)))
+            .map(|e| [e[0], e[1], e[2], e[3]])
             .collect::<Vec<_>>();
-        t.transform_in_place(pixels.as_mut_slice());
-        eprintln!("{}", pixels.len());
-        eprintln!("{:?}", pixels[0].to_be_bytes());
-        eprintln!("{:?}", pixels[1].to_be_bytes());
-        eprintln!("{:?}", pixels[2].to_be_bytes());
-        eprintln!("{:?}", pixels[3].to_be_bytes());
-        let container = pixels
-            .iter()
-            .map(|e| {
-                let b = e.to_be_bytes();
-                [b[0], b[1], b[2]]
-            })
-            .flatten()
-            .collect::<Vec<_>>();
-        eprintln!("{}", container.len());
-        eprintln!("{}, {}, {}", container[0], container[1], container[2]);
-        eprintln!("{}, {}, {}", container[3], container[4], container[5]);
-        eprintln!("{}, {}, {}", container[6], container[7], container[8]);
-        eprintln!("{}, {}, {}", container[9], container[10], container[11]);
-        Some((width as u32, height as u32, container))
+        let mut dest = vec![[0x00, 0x00, 0x00]; raw.len() / 4];
+        t.transform_pixels(src.as_slice(), dest.as_mut_slice());
+        let mut buf = std::io::Cursor::new(Vec::with_capacity(raw.len() / 4));
+        use std::io::Write;
+        dest.iter().for_each(|e| {
+            let _ = buf.write(e);
+        });
+        Some((width, height, buf.into_inner()))
     }
 }
 
