@@ -181,15 +181,24 @@ impl State {
             return self.process_gif(reader.into_inner().into_inner(), params);
         }
         let mut decoder = reader.into_decoder()?;
+        let orientation = decoder.orientation().ok();
         // https://docs.rs/image/latest/image/enum.DynamicImage.html
-        let mut img = match decoder.orientation() {
-            Ok(o) => {
-                let mut img = DynamicImage::from_decoder(decoder)?;
-                img.apply_orientation(o);
-                img
+        let mut img = if format == ImageFormat::Jpeg {
+            match self.convert_jpeg_color_if_needed(original) {
+                Some((width, height, converted)) => {
+                    match image::RgbImage::from_raw(width, height, converted) {
+                        Some(b) => DynamicImage::ImageRgb8(b),
+                        None => DynamicImage::from_decoder(decoder)?,
+                    }
+                }
+                None => DynamicImage::from_decoder(decoder)?,
             }
-            Err(_) => DynamicImage::from_decoder(decoder)?,
+        } else {
+            DynamicImage::from_decoder(decoder)?
         };
+        if let Some(o) = orientation {
+            img.apply_orientation(o);
+        }
         if params.grayscale() {
             img = img.grayscale();
         } else if params.inverse() {
@@ -357,6 +366,86 @@ impl State {
         let opt = usvg::Options::default();
         usvg::Tree::from_str(s.as_str(), &opt).map_err(|_err| "failed to parse as SVG")?;
         Ok((Self::MIME_TYPE_SVG, s.into_bytes()))
+    }
+
+    fn convert_jpeg_color_if_needed(&self, original: &[u8]) -> Option<(u32, u32, Vec<u8>)> {
+        // https://docs.rs/zune-jpeg/latest/zune_jpeg/struct.JpegDecoder.html
+        let mut decoder = zune_jpeg::JpegDecoder::new(original);
+        if let Err(_) = decoder.decode_headers() {
+            return None;
+        };
+        let (width, height) = match decoder.dimensions() {
+            Some(e) => e,
+            None => return None,
+        };
+        let color_space = match decoder.get_input_colorspace() {
+            Some(e) => e,
+            None => return None,
+        };
+        // https://docs.rs/zune-core/latest/zune_core/colorspace/enum.ColorSpace.html
+        // https://docs.rs/lcms2/latest/lcms2/struct.PixelFormat.html
+        let pixel_format = match color_space {
+            zune_jpeg::zune_core::colorspace::ColorSpace::YCCK => lcms2::PixelFormat::CMYK_8,
+            zune_jpeg::zune_core::colorspace::ColorSpace::CMYK => lcms2::PixelFormat::CMYK_8,
+            _ => return None,
+        };
+        let d = match decoder.icc_profile() {
+            Some(e) => e,
+            None => return None,
+        };
+        // https://docs.rs/lcms2/latest/lcms2/struct.Profile.html
+        let orig_prof = match lcms2::Profile::new_icc(d.as_slice()) {
+            Ok(e) => e,
+            Err(_) => return None,
+        };
+        let srgb_prof = lcms2::Profile::new_srgb();
+        // https://docs.rs/lcms2/latest/lcms2/struct.Transform.html
+        let t = match lcms2::Transform::<u32, u32>::new(
+            &orig_prof,
+            pixel_format,
+            &srgb_prof,
+            lcms2::PixelFormat::RGBA_8,
+            lcms2::Intent::Perceptual,
+        ) {
+            Ok(e) => e,
+            Err(_) => return None,
+        };
+        let opts = decoder.get_options().jpeg_set_out_colorspace(color_space);
+        decoder.set_options(opts);
+        eprintln!("{:?}", decoder.get_output_colorspace());
+        let raw = match decoder.decode() {
+            Ok(e) => e,
+            Err(_) => return None,
+        };
+        eprintln!("{}", raw.len());
+        eprintln!("{}, {}, {}, {}", raw[0], raw[1], raw[2], raw[3]);
+        eprintln!("{}, {}, {}, {}", raw[4], raw[5], raw[6], raw[7]);
+        eprintln!("{}, {}, {}, {}", raw[8], raw[9], raw[10], raw[11]);
+        eprintln!("{}, {}, {}, {}", raw[12], raw[13], raw[14], raw[15]);
+        let mut pixels = raw
+            .chunks(std::mem::size_of::<u32>())
+            .map(|e| u32::from_be_bytes(e.try_into().map_or([0x00, 0x00, 0x00, 0x00], |v| v)))
+            .collect::<Vec<_>>();
+        t.transform_in_place(pixels.as_mut_slice());
+        eprintln!("{}", pixels.len());
+        eprintln!("{:?}", pixels[0].to_be_bytes());
+        eprintln!("{:?}", pixels[1].to_be_bytes());
+        eprintln!("{:?}", pixels[2].to_be_bytes());
+        eprintln!("{:?}", pixels[3].to_be_bytes());
+        let container = pixels
+            .iter()
+            .map(|e| {
+                let b = e.to_be_bytes();
+                [b[0], b[1], b[2]]
+            })
+            .flatten()
+            .collect::<Vec<_>>();
+        eprintln!("{}", container.len());
+        eprintln!("{}, {}, {}", container[0], container[1], container[2]);
+        eprintln!("{}, {}, {}", container[3], container[4], container[5]);
+        eprintln!("{}, {}, {}", container[6], container[7], container[8]);
+        eprintln!("{}, {}, {}", container[9], container[10], container[11]);
+        Some((width as u32, height as u32, container))
     }
 }
 
