@@ -186,10 +186,10 @@ impl State {
         let mut img = if format == ImageFormat::Jpeg {
             match self.convert_jpeg_color_if_needed(original) {
                 Some((width, height, converted)) => {
-                    match image::RgbImage::from_raw(width, height, converted) {
-                        Some(b) => DynamicImage::ImageRgb8(b),
-                        None => DynamicImage::from_decoder(decoder)?,
-                    }
+                    image::RgbImage::from_raw(width, height, converted)
+                        .map_or(DynamicImage::from_decoder(decoder)?, |b| {
+                            DynamicImage::ImageRgb8(b)
+                        })
                 }
                 None => DynamicImage::from_decoder(decoder)?,
             }
