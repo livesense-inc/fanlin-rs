@@ -371,17 +371,11 @@ impl State {
     fn convert_jpeg_color_if_needed(&self, original: &[u8]) -> Option<(u32, u32, Vec<u8>)> {
         // https://docs.rs/zune-jpeg/latest/zune_jpeg/struct.JpegDecoder.html
         let mut decoder = zune_jpeg::JpegDecoder::new(original);
-        if let Err(_) = decoder.decode_headers() {
+        if decoder.decode_headers().is_err() {
             return None;
         };
-        let (width, height) = match decoder.dimensions() {
-            Some((w, h)) => (w as u32, h as u32),
-            None => return None,
-        };
-        let color_space = match decoder.get_input_colorspace() {
-            Some(e) => e,
-            None => return None,
-        };
+        let (width, height) = decoder.dimensions()?;
+        let color_space = decoder.get_input_colorspace()?;
         // https://docs.rs/zune-core/latest/zune_core/colorspace/enum.ColorSpace.html
         // https://docs.rs/lcms2/latest/lcms2/struct.PixelFormat.html
         let pixel_format = match color_space {
@@ -389,33 +383,22 @@ impl State {
             zune_jpeg::zune_core::colorspace::ColorSpace::CMYK => lcms2::PixelFormat::CMYK_8,
             _ => return None,
         };
-        let d = match decoder.icc_profile() {
-            Some(e) => e,
-            None => return None,
-        };
+        let d = decoder.icc_profile()?;
         // https://docs.rs/lcms2/latest/lcms2/struct.Profile.html
-        let orig_prof = match lcms2::Profile::new_icc(d.as_slice()) {
-            Ok(e) => e,
-            Err(_) => return None,
-        };
+        let orig_prof = lcms2::Profile::new_icc(d.as_slice()).ok()?;
         let srgb_prof = lcms2::Profile::new_srgb();
         // https://docs.rs/lcms2/latest/lcms2/struct.Transform.html
-        let t = match lcms2::Transform::<[u8; 4], [u8; 3]>::new(
+        let t = lcms2::Transform::<[u8; 4], [u8; 3]>::new(
             &orig_prof,
             pixel_format,
             &srgb_prof,
             lcms2::PixelFormat::RGB_8,
             lcms2::Intent::Perceptual,
-        ) {
-            Ok(e) => e,
-            Err(_) => return None,
-        };
+        )
+        .ok()?;
         let opts = decoder.get_options().jpeg_set_out_colorspace(color_space);
         decoder.set_options(opts);
-        let raw = match decoder.decode() {
-            Ok(e) => e,
-            Err(_) => return None,
-        };
+        let raw = decoder.decode().ok()?;
         let src = raw
             .chunks(std::mem::size_of::<u32>())
             .map(|e| [e[0], e[1], e[2], e[3]])
@@ -427,7 +410,7 @@ impl State {
         dest.iter().for_each(|e| {
             let _ = buf.write(e);
         });
-        Some((width, height, buf.into_inner()))
+        Some((width as u32, height as u32, buf.into_inner()))
     }
 }
 
