@@ -399,13 +399,14 @@ impl State {
         let opts = decoder.get_options().jpeg_set_out_colorspace(color_space);
         decoder.set_options(opts);
         let raw = decoder.decode().ok()?;
+        let size = std::mem::size_of::<u32>();
         let src = raw
-            .chunks(std::mem::size_of::<u32>())
+            .chunks(size)
             .map(|e| [e[0], e[1], e[2], e[3]])
             .collect::<Vec<_>>();
-        let mut dest = vec![[0x00, 0x00, 0x00]; raw.len() / 4];
+        let mut dest = vec![[0x00, 0x00, 0x00]; raw.len() / size];
         t.transform_pixels(src.as_slice(), dest.as_mut_slice());
-        let mut buf = std::io::Cursor::new(Vec::with_capacity(raw.len() / 4));
+        let mut buf = std::io::Cursor::new(Vec::with_capacity(raw.len() / size));
         use std::io::Write;
         dest.iter().for_each(|e| {
             let _ = buf.write(e);
