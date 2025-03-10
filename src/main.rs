@@ -71,6 +71,9 @@ async fn main() {
             |err| tracing::warn!("failed to initialize fallback image; {err:?}"),
             |_| {},
         );
+    if let Some(path) = cfg.profile_path {
+        state.load_icc_profile(path).await;
+    }
     // https://github.com/tower-rs/tower-http/blob/main/examples/axum-key-value-store/src/main.rs
     // https://docs.rs/axum/latest/axum/middleware/index.html
     // https://docs.rs/tower-http/latest/tower_http/trace/index.html

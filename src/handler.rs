@@ -16,6 +16,7 @@ pub struct State {
     client: infra::Client,
     fallback_images: HashMap<String, Vec<u8>>,
     fallback_path: String,
+    icc_profile: Option<Vec<u8>>,
 }
 
 #[derive(Clone, Debug)]
@@ -31,11 +32,13 @@ impl State {
         let router = Self::make_router(providers);
         let fallback_images: HashMap<String, Vec<u8>> = HashMap::new();
         let fallback_path = "".to_string();
+        let icc_profile = None;
         Self {
             router,
             client,
             fallback_images,
             fallback_path,
+            icc_profile,
         }
     }
 
@@ -69,6 +72,13 @@ impl State {
                 .expect("failed to make router with providers");
         }
         router
+    }
+
+    pub async fn load_icc_profile<P: AsRef<std::path::Path>>(&mut self, path: P) {
+        match tokio::fs::read(path).await {
+            Ok(d) => self.icc_profile = Some(d),
+            Err(e) => tracing::warn!("{e:?}"),
+        }
     }
 
     pub async fn with_fallback(
@@ -388,9 +398,14 @@ impl State {
         if size != 4 {
             return None;
         }
-        let d = decoder.icc_profile()?;
         // https://docs.rs/lcms2/latest/lcms2/struct.Profile.html
-        let orig_prof = lcms2::Profile::new_icc(d.as_slice()).ok()?;
+        let orig_prof = match decoder.icc_profile() {
+            Some(d) => lcms2::Profile::new_icc(d.as_slice()).ok()?,
+            None => match &self.icc_profile {
+                Some(d) => lcms2::Profile::new_icc(d.as_slice()).ok()?,
+                None => return None,
+            },
+        };
         let srgb_prof = lcms2::Profile::new_srgb();
         // https://docs.rs/lcms2/latest/lcms2/struct.Transform.html
         let t = lcms2::Transform::<[u8; 4], [u8; 3]>::new(
