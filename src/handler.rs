@@ -77,7 +77,7 @@ impl State {
     pub async fn load_icc_profile<P: AsRef<std::path::Path>>(&mut self, path: P) {
         match tokio::fs::read(path).await {
             Ok(d) => self.icc_profile = Some(d),
-            Err(e) => tracing::warn!("{e:?}"),
+            Err(e) => tracing::warn!("failed to load an icc profile; {e:?}"),
         }
     }
 
