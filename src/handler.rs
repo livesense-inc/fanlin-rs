@@ -378,11 +378,16 @@ impl State {
         let color_space = decoder.get_input_colorspace()?;
         // https://docs.rs/zune-core/latest/zune_core/colorspace/enum.ColorSpace.html
         // https://docs.rs/lcms2/latest/lcms2/struct.PixelFormat.html
-        let pixel_format = match color_space {
-            zune_jpeg::zune_core::colorspace::ColorSpace::YCCK => lcms2::PixelFormat::CMYK_8,
-            zune_jpeg::zune_core::colorspace::ColorSpace::CMYK => lcms2::PixelFormat::CMYK_8,
+        use lcms2::PixelFormat;
+        use zune_jpeg::zune_core::colorspace::ColorSpace;
+        let (size, pixel_format) = match color_space {
+            ColorSpace::YCCK => (ColorSpace::YCCK.num_components(), PixelFormat::CMYK_8),
+            ColorSpace::CMYK => (ColorSpace::CMYK.num_components(), PixelFormat::CMYK_8),
             _ => return None,
         };
+        if size != 4 {
+            return None;
+        }
         let d = decoder.icc_profile()?;
         // https://docs.rs/lcms2/latest/lcms2/struct.Profile.html
         let orig_prof = lcms2::Profile::new_icc(d.as_slice()).ok()?;
@@ -399,14 +404,17 @@ impl State {
         let opts = decoder.get_options().jpeg_set_out_colorspace(color_space);
         decoder.set_options(opts);
         let raw = decoder.decode().ok()?;
-        let size = std::mem::size_of::<u32>();
+        if raw.len() % size > 0 {
+            return None;
+        }
+        let number_of_pixels = raw.len() / size;
         let src = raw
             .chunks(size)
-            .map(|e| [e[0], e[1], e[2], e[3]])
+            .map(|e| e.try_into().map_or([0x00, 0x00, 0x00, 0x00], |v| v))
             .collect::<Vec<_>>();
-        let mut dest = vec![[0x00, 0x00, 0x00]; raw.len() / size];
+        let mut dest = vec![[0x00, 0x00, 0x00]; number_of_pixels];
         t.transform_pixels(src.as_slice(), dest.as_mut_slice());
-        let mut buf = std::io::Cursor::new(Vec::with_capacity(raw.len() / size));
+        let mut buf = std::io::Cursor::new(Vec::with_capacity(number_of_pixels));
         use std::io::Write;
         dest.iter().for_each(|e| {
             let _ = buf.write(e);
