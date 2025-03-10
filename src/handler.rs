@@ -412,13 +412,14 @@ impl State {
             .chunks(size)
             .map(|e| e.try_into().map_or([0x00, 0x00, 0x00, 0x00], |v| v))
             .collect::<Vec<_>>();
-        let buf = Vec::with_capacity(number_of_pixels);
-        let mut dest = buf
-            .chunks(ColorSpace::RGB.num_components())
-            .map(|e| e.try_into().map_or([0x00, 0x00, 0x00], |v| v))
-            .collect::<Vec<_>>();
+        let mut dest = vec![[0x00, 0x00, 0x00]; number_of_pixels];
         t.transform_pixels(src.as_slice(), dest.as_mut_slice());
-        Some((width as u32, height as u32, buf))
+        let mut buf = std::io::Cursor::new(Vec::with_capacity(number_of_pixels));
+        use std::io::Write;
+        dest.iter().for_each(|e| {
+            let _ = buf.write(e);
+        });
+        Some((width as u32, height as u32, buf.into_inner()))
     }
 }
 
