@@ -414,12 +414,9 @@ impl State {
             .collect::<Vec<_>>();
         let mut dest = vec![[0x00, 0x00, 0x00]; number_of_pixels];
         t.transform_pixels(src.as_slice(), dest.as_mut_slice());
-        let mut buf = std::io::Cursor::new(Vec::with_capacity(number_of_pixels));
-        use std::io::Write;
-        dest.iter().for_each(|e| {
-            let _ = buf.write(e);
-        });
-        Some((width as u32, height as u32, buf.into_inner()))
+        let mut buf = Vec::with_capacity(number_of_pixels);
+        dest.iter().for_each(|e| buf.extend_from_slice(e));
+        Some((width as u32, height as u32, buf))
     }
 }
 
