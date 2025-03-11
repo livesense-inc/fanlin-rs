@@ -381,9 +381,7 @@ impl State {
     fn convert_jpeg_color_if_needed(&self, original: &[u8]) -> Option<(u32, u32, Vec<u8>)> {
         // https://docs.rs/zune-jpeg/latest/zune_jpeg/struct.JpegDecoder.html
         let mut decoder = zune_jpeg::JpegDecoder::new(original);
-        if decoder.decode_headers().is_err() {
-            return None;
-        };
+        decoder.decode_headers().ok()?;
         let (width, height) = decoder.dimensions()?;
         let color_space = decoder.get_input_colorspace()?;
         // https://docs.rs/zune-core/latest/zune_core/colorspace/enum.ColorSpace.html
@@ -418,27 +416,7 @@ impl State {
         .ok()?;
         let opts = decoder.get_options().jpeg_set_out_colorspace(color_space);
         decoder.set_options(opts);
-        let mut raw = decoder.decode().ok()?;
-        if color_space == ColorSpace::YCCK {
-            // https://docs.nvidia.com/cuda/archive/11.0/npp/group__yccktocmyk601.html
-            let mut i = 0;
-            let s = raw.len();
-            while i < s {
-                let y = raw[i] as f32;
-                let cb = raw[i + 1] as f32;
-                let cr = raw[i + 2] as f32;
-                let r = y + 1.402f32 * cr - 179.456f32;
-                let g = y - 0.34414f32 * cb - 0.71414f32 * cr + 135.45984f32;
-                let b = y + 1.772f32 * cb - 226.816f32;
-                let c = 255.0f32 - r;
-                let m = 255.0f32 - g;
-                let y = 255.0f32 - b;
-                raw[i] = c as u8;
-                raw[i + 1] = m as u8;
-                raw[i + 2] = y as u8;
-                i += 4;
-            }
-        }
+        let raw = decoder.decode().ok()?;
         let number_of_pixels = raw.len() / size;
         let src = raw
             .chunks(size)
