@@ -418,9 +418,26 @@ impl State {
         .ok()?;
         let opts = decoder.get_options().jpeg_set_out_colorspace(color_space);
         decoder.set_options(opts);
-        let raw = decoder.decode().ok()?;
-        if raw.len() % size > 0 {
-            return None;
+        let mut raw = decoder.decode().ok()?;
+        if color_space == ColorSpace::YCCK {
+            // https://docs.nvidia.com/cuda/archive/11.0/npp/group__yccktocmyk601.html
+            let mut i = 0;
+            let s = raw.len();
+            while i < s {
+                let y = raw[i] as f32;
+                let cb = raw[i + 1] as f32;
+                let cr = raw[i + 2] as f32;
+                let r = y + 1.402f32 * cr - 179.456f32;
+                let g = y - 0.34414f32 * cb - 0.71414f32 * cr + 135.45984f32;
+                let b = y + 1.772f32 * cb - 226.816f32;
+                let c = 255.0f32 - r;
+                let m = 255.0f32 - g;
+                let y = 255.0f32 - b;
+                raw[i] = c as u8;
+                raw[i + 1] = m as u8;
+                raw[i + 2] = y as u8;
+                i += 4;
+            }
         }
         let number_of_pixels = raw.len() / size;
         let src = raw
