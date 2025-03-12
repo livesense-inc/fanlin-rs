@@ -393,7 +393,7 @@ impl State {
             ColorSpace::CMYK => (ColorSpace::CMYK.num_components(), PixelFormat::CMYK_8),
             _ => return None,
         };
-        if size != 4 {
+        if size > 4 {
             return None;
         }
         // https://docs.rs/lcms2/latest/lcms2/struct.Profile.html
@@ -420,9 +420,9 @@ impl State {
         let number_of_pixels = raw.len() / size;
         let src = raw
             .chunks(size)
-            .map(|e| e.try_into().map_or([0x00, 0x00, 0x00, 0x00], |v| v))
+            .map(|e| e.try_into().map_or([0u8; 4], |v| v))
             .collect::<Vec<_>>();
-        let mut dest = vec![[0x00, 0x00, 0x00]; number_of_pixels];
+        let mut dest = vec![[0u8; 3]; number_of_pixels];
         t.transform_pixels(src.as_slice(), dest.as_mut_slice());
         let mut buf = Vec::with_capacity(number_of_pixels);
         dest.iter().for_each(|e| buf.extend_from_slice(e));
