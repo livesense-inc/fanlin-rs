@@ -378,8 +378,6 @@ impl State {
         Ok((Self::MIME_TYPE_SVG, s.into_bytes()))
     }
 
-    const PIX_FMT_YCCK_8: lcms2::PixelFormat = lcms2::PixelFormat(720929u32);
-
     fn convert_jpeg_color_if_needed(&self, original: &[u8]) -> Option<(u32, u32, Vec<u8>)> {
         // https://docs.rs/zune-jpeg/latest/zune_jpeg/struct.JpegDecoder.html
         let mut decoder = zune_jpeg::JpegDecoder::new(original);
@@ -391,7 +389,7 @@ impl State {
         use lcms2::PixelFormat;
         use zune_jpeg::zune_core::colorspace::ColorSpace;
         let (size, pixel_format) = match color_space {
-            ColorSpace::YCCK => (ColorSpace::YCCK.num_components(), Self::PIX_FMT_YCCK_8),
+            ColorSpace::YCCK => (ColorSpace::YCCK.num_components(), PixelFormat::CMYK_8),
             ColorSpace::CMYK => (ColorSpace::CMYK.num_components(), PixelFormat::CMYK_8),
             _ => return None,
         };
@@ -425,7 +423,25 @@ impl State {
         };
         let opts = decoder.get_options().jpeg_set_out_colorspace(color_space);
         decoder.set_options(opts);
-        let raw = decoder.decode().ok()?;
+        let mut raw = decoder.decode().ok()?;
+        if color_space == ColorSpace::YCCK {
+            let mut i = 0;
+            let s = raw.len();
+            while i < s {
+                // https://github.com/InsightSoftwareConsortium/ITK/pull/2988
+                let y = raw[i + 0] as f32;
+                let cb = raw[i + 1] as f32;
+                let cr = raw[i + 2] as f32;
+                let k = raw[i + 3] as f32;
+                let c = y * k / 255.0f32;
+                let m = cb * k / 255.0f32;
+                let y = cr * k / 255.0f32;
+                raw[i + 0] = c as u8;
+                raw[i + 1] = m as u8;
+                raw[i + 2] = y as u8;
+                i += 4;
+            }
+        }
         let number_of_pixels = raw.len() / size;
         let src = raw
             .chunks(size)
