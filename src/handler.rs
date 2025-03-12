@@ -378,7 +378,7 @@ impl State {
         Ok((Self::MIME_TYPE_SVG, s.into_bytes()))
     }
 
-    const PIXEL_FORMAT_YCCK: lcms2::PixelFormat = lcms2::PixelFormat(0u32); // TODO: impl
+    const PIX_FMT_YCCK_8: lcms2::PixelFormat = lcms2::PixelFormat(720929u32);
 
     fn convert_jpeg_color_if_needed(&self, original: &[u8]) -> Option<(u32, u32, Vec<u8>)> {
         // https://docs.rs/zune-jpeg/latest/zune_jpeg/struct.JpegDecoder.html
@@ -391,7 +391,7 @@ impl State {
         use lcms2::PixelFormat;
         use zune_jpeg::zune_core::colorspace::ColorSpace;
         let (size, pixel_format) = match color_space {
-            ColorSpace::YCCK => (ColorSpace::YCCK.num_components(), Self::PIXEL_FORMAT_YCCK),
+            ColorSpace::YCCK => (ColorSpace::YCCK.num_components(), Self::PIX_FMT_YCCK_8),
             ColorSpace::CMYK => (ColorSpace::CMYK.num_components(), PixelFormat::CMYK_8),
             _ => return None,
         };
@@ -408,14 +408,21 @@ impl State {
         };
         let srgb_prof = lcms2::Profile::new_srgb();
         // https://docs.rs/lcms2/latest/lcms2/struct.Transform.html
-        let t = lcms2::Transform::<[u8; 4], [u8; 3]>::new(
+        let t = match lcms2::Transform::<[u8; 4], [u8; 3]>::new(
             &orig_prof,
             pixel_format,
             &srgb_prof,
             lcms2::PixelFormat::RGB_8,
             lcms2::Intent::Perceptual,
-        )
-        .ok()?;
+        ) {
+            Ok(t) => t,
+            Err(e) => {
+                tracing::warn!(
+                    "failed to create a transform object for converting color space; {color_space:?}, {e:?}"
+                );
+                return None;
+            }
+        };
         let opts = decoder.get_options().jpeg_set_out_colorspace(color_space);
         decoder.set_options(opts);
         let raw = decoder.decode().ok()?;
