@@ -410,7 +410,7 @@ impl State {
             &orig_prof,
             pixel_format,
             &srgb_prof,
-            lcms2::PixelFormat::RGB_8,
+            PixelFormat::RGB_8,
             lcms2::Intent::Perceptual,
         ) {
             Ok(t) => t,
@@ -449,7 +449,7 @@ impl State {
             .collect::<Vec<_>>();
         let mut dest = vec![[0u8; 3]; number_of_pixels];
         t.transform_pixels(src.as_slice(), dest.as_mut_slice());
-        let mut buf = Vec::with_capacity(number_of_pixels);
+        let mut buf = Vec::with_capacity(number_of_pixels * ColorSpace::RGB.num_components());
         dest.iter().for_each(|e| buf.extend_from_slice(e));
         Some((width as u32, height as u32, buf))
     }
