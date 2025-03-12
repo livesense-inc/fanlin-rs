@@ -378,6 +378,8 @@ impl State {
         Ok((Self::MIME_TYPE_SVG, s.into_bytes()))
     }
 
+    const PIXEL_FORMAT_YCCK: lcms2::PixelFormat = lcms2::PixelFormat(0u32); // TODO: impl
+
     fn convert_jpeg_color_if_needed(&self, original: &[u8]) -> Option<(u32, u32, Vec<u8>)> {
         // https://docs.rs/zune-jpeg/latest/zune_jpeg/struct.JpegDecoder.html
         let mut decoder = zune_jpeg::JpegDecoder::new(original);
@@ -389,7 +391,7 @@ impl State {
         use lcms2::PixelFormat;
         use zune_jpeg::zune_core::colorspace::ColorSpace;
         let (size, pixel_format) = match color_space {
-            ColorSpace::YCCK => (ColorSpace::YCCK.num_components(), PixelFormat::CMYK_8),
+            ColorSpace::YCCK => (ColorSpace::YCCK.num_components(), Self::PIXEL_FORMAT_YCCK),
             ColorSpace::CMYK => (ColorSpace::CMYK.num_components(), PixelFormat::CMYK_8),
             _ => return None,
         };
