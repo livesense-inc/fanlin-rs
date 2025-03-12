@@ -429,14 +429,14 @@ impl State {
             let s = raw.len();
             while i < s {
                 // https://github.com/InsightSoftwareConsortium/ITK/pull/2988
-                let y = raw[i + 0] as f32;
+                let y = raw[i] as f32;
                 let cb = raw[i + 1] as f32;
                 let cr = raw[i + 2] as f32;
                 let k = raw[i + 3] as f32;
                 let c = y * k / 255.0f32;
                 let m = cb * k / 255.0f32;
                 let y = cr * k / 255.0f32;
-                raw[i + 0] = c as u8;
+                raw[i] = c as u8;
                 raw[i + 1] = m as u8;
                 raw[i + 2] = y as u8;
                 i += 4;
