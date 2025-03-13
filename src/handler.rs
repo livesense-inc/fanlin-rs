@@ -435,10 +435,12 @@ impl State {
                 let k = raw[i + 3] as f32;
                 let c = y * k / 255.0f32;
                 let m = cb * k / 255.0f32;
-                let y = cr * k / 255.0f32;
+                let y2 = cr * k / 255.0f32;
+                let k2 = 255.0f32 - k;
                 raw[i] = c as u8;
                 raw[i + 1] = m as u8;
-                raw[i + 2] = y as u8;
+                raw[i + 2] = y2 as u8;
+                raw[i + 3] = k2 as u8;
                 i += 4;
             }
         }
