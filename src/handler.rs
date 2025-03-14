@@ -425,20 +425,21 @@ impl State {
         decoder.set_options(opts);
         let mut raw = decoder.decode().ok()?;
         if color_space == ColorSpace::YCCK {
+            // https://github.com/LadybirdBrowser/ladybird/pull/3887
+            // https://docs.nvidia.com/cuda/archive/11.0/npp/group__yccktocmyk601.html
             let mut i = 0;
             let s = raw.len();
             while i < s {
                 let y = raw[i] as f32;
                 let cb = raw[i + 1] as f32;
                 let cr = raw[i + 2] as f32;
-                let k = raw[i + 3] as f32;
-                let c = cb / k + y;
-                let m = cr / k + y;
-                let ye = y;
-                let k = 255.0f32 - k;
-                raw[i] = c as u8;
-                raw[i + 1] = m as u8;
-                raw[i + 2] = ye as u8;
+                let r = (y + 1.40200f32 * cr - 179.45600f32).clamp(0f32, 255f32);
+                let g = (y - 0.34414f32 * cb - 0.71414f32 * cr + 135.45984f32).clamp(0f32, 255f32);
+                let b = (y + 1.77200f32 * cb - 226.81600f32).clamp(0f32, 255f32);
+                let k = (255u8 - raw[i + 3]).clamp(0u8, 255u8);
+                raw[i] = r as u8;
+                raw[i + 1] = g as u8;
+                raw[i + 2] = b as u8;
                 raw[i + 3] = k as u8;
                 i += 4;
             }
