@@ -433,14 +433,14 @@ impl State {
                 let y = raw[i] as f32;
                 let cb = raw[i + 1] as f32;
                 let cr = raw[i + 2] as f32;
-                let r = (y + 1.40200f32 * cr - 179.45600f32).clamp(0f32, 255f32);
+                let r = (y + 1.40200f32 * cr - 179.456_f32).clamp(0f32, 255f32);
                 let g = (y - 0.34414f32 * cb - 0.71414f32 * cr + 135.45984f32).clamp(0f32, 255f32);
-                let b = (y + 1.77200f32 * cb - 226.81600f32).clamp(0f32, 255f32);
+                let b = (y + 1.77200f32 * cb - 226.816_f32).clamp(0f32, 255f32);
                 let k = (255u8 - raw[i + 3]).clamp(0u8, 255u8);
                 raw[i] = r as u8;
                 raw[i + 1] = g as u8;
                 raw[i + 2] = b as u8;
-                raw[i + 3] = k as u8;
+                raw[i + 3] = k;
                 i += 4;
             }
         }
