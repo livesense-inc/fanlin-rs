@@ -12,10 +12,10 @@ aws-sdk-s3 = "1.74"
 axum = { version = "0.8", features = ["macros"] }
 clap = { version = "4.5", features = ["derive"] }
 image = "0.25"
+lcms2 = "6.1.0"
 matchit = "0.8"
 percent-encoding = "2.3"
 reqwest = { version = "0.12", features = ["hickory-dns"] }
-usvg = { version = "0.44", default-features = false }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 simple-server-timing-header = "0.1"
@@ -24,7 +24,9 @@ tower = { version = "0.5", features = ["limit"] }
 tower-http = { version = "0.6", features = ["timeout", "trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["json"] }
+usvg = { version = "0.44", default-features = false }
 webp = "0.3"
+zune-jpeg = "0.4.14"
 
 [dev-dependencies]
 tower-http = { version = "0.6", features = ["timeout", "trace", "fs"] }

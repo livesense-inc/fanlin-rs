@@ -16,6 +16,7 @@ pub struct State {
     client: infra::Client,
     fallback_images: HashMap<String, Vec<u8>>,
     fallback_path: String,
+    icc_profile: Option<Vec<u8>>,
 }
 
 #[derive(Clone, Debug)]
@@ -31,11 +32,13 @@ impl State {
         let router = Self::make_router(providers);
         let fallback_images: HashMap<String, Vec<u8>> = HashMap::new();
         let fallback_path = "".to_string();
+        let icc_profile = None;
         Self {
             router,
             client,
             fallback_images,
             fallback_path,
+            icc_profile,
         }
     }
 
@@ -69,6 +72,13 @@ impl State {
                 .expect("failed to make router with providers");
         }
         router
+    }
+
+    pub async fn load_icc_profile<P: AsRef<std::path::Path>>(&mut self, path: P) {
+        match tokio::fs::read(path).await {
+            Ok(d) => self.icc_profile = Some(d),
+            Err(e) => tracing::warn!("failed to load an icc profile; {e:?}"),
+        }
     }
 
     pub async fn with_fallback(
@@ -181,15 +191,24 @@ impl State {
             return self.process_gif(reader.into_inner().into_inner(), params);
         }
         let mut decoder = reader.into_decoder()?;
+        let orientation = decoder.orientation().ok();
         // https://docs.rs/image/latest/image/enum.DynamicImage.html
-        let mut img = match decoder.orientation() {
-            Ok(o) => {
-                let mut img = DynamicImage::from_decoder(decoder)?;
-                img.apply_orientation(o);
-                img
+        let mut img = if format == ImageFormat::Jpeg {
+            match self.convert_jpeg_color_if_needed(original) {
+                Some((width, height, converted)) => {
+                    image::RgbImage::from_raw(width, height, converted)
+                        .map_or(DynamicImage::from_decoder(decoder)?, |b| {
+                            DynamicImage::ImageRgb8(b)
+                        })
+                }
+                None => DynamicImage::from_decoder(decoder)?,
             }
-            Err(_) => DynamicImage::from_decoder(decoder)?,
+        } else {
+            DynamicImage::from_decoder(decoder)?
         };
+        if let Some(o) = orientation {
+            img.apply_orientation(o);
+        }
         if params.grayscale() {
             img = img.grayscale();
         } else if params.inverse() {
@@ -357,6 +376,84 @@ impl State {
         let opt = usvg::Options::default();
         usvg::Tree::from_str(s.as_str(), &opt).map_err(|_err| "failed to parse as SVG")?;
         Ok((Self::MIME_TYPE_SVG, s.into_bytes()))
+    }
+
+    fn convert_jpeg_color_if_needed(&self, original: &[u8]) -> Option<(u32, u32, Vec<u8>)> {
+        // https://docs.rs/zune-jpeg/latest/zune_jpeg/struct.JpegDecoder.html
+        let mut decoder = zune_jpeg::JpegDecoder::new(original);
+        decoder.decode_headers().ok()?;
+        let (width, height) = decoder.dimensions()?;
+        let color_space = decoder.get_input_colorspace()?;
+        // https://docs.rs/zune-core/latest/zune_core/colorspace/enum.ColorSpace.html
+        // https://docs.rs/lcms2/latest/lcms2/struct.PixelFormat.html
+        use lcms2::PixelFormat;
+        use zune_jpeg::zune_core::colorspace::ColorSpace;
+        let (size, pixel_format) = match color_space {
+            ColorSpace::YCCK => (ColorSpace::YCCK.num_components(), PixelFormat::CMYK_8),
+            ColorSpace::CMYK => (ColorSpace::CMYK.num_components(), PixelFormat::CMYK_8),
+            _ => return None,
+        };
+        if size > 4 {
+            return None;
+        }
+        // https://docs.rs/lcms2/latest/lcms2/struct.Profile.html
+        let orig_prof = match decoder.icc_profile() {
+            Some(d) => lcms2::Profile::new_icc(d.as_slice()).ok()?,
+            None => match &self.icc_profile {
+                Some(d) => lcms2::Profile::new_icc(d.as_slice()).ok()?,
+                None => return None,
+            },
+        };
+        let srgb_prof = lcms2::Profile::new_srgb();
+        // https://docs.rs/lcms2/latest/lcms2/struct.Transform.html
+        let t = match lcms2::Transform::<[u8; 4], [u8; 3]>::new(
+            &orig_prof,
+            pixel_format,
+            &srgb_prof,
+            PixelFormat::RGB_8,
+            lcms2::Intent::Perceptual,
+        ) {
+            Ok(t) => t,
+            Err(e) => {
+                tracing::warn!(
+                    "failed to create a transform object for converting color space; {color_space:?}, {e:?}"
+                );
+                return None;
+            }
+        };
+        let opts = decoder.get_options().jpeg_set_out_colorspace(color_space);
+        decoder.set_options(opts);
+        let mut raw = decoder.decode().ok()?;
+        if color_space == ColorSpace::YCCK {
+            // https://github.com/LadybirdBrowser/ladybird/pull/3887
+            // https://docs.nvidia.com/cuda/archive/11.0/npp/group__yccktocmyk601.html
+            let mut i = 0;
+            let s = raw.len();
+            while i < s {
+                let y = raw[i] as f32;
+                let cb = raw[i + 1] as f32;
+                let cr = raw[i + 2] as f32;
+                let r = (y + 1.40200f32 * cr - 179.456_f32).clamp(0f32, 255f32);
+                let g = (y - 0.34414f32 * cb - 0.71414f32 * cr + 135.45984f32).clamp(0f32, 255f32);
+                let b = (y + 1.77200f32 * cb - 226.816_f32).clamp(0f32, 255f32);
+                let k = (255u8 - raw[i + 3]).clamp(0u8, 255u8);
+                raw[i] = r as u8;
+                raw[i + 1] = g as u8;
+                raw[i + 2] = b as u8;
+                raw[i + 3] = k;
+                i += 4;
+            }
+        }
+        let number_of_pixels = raw.len() / size;
+        let src = raw
+            .chunks(size)
+            .map(|e| e.try_into().map_or([0u8; 4], |v| v))
+            .collect::<Vec<_>>();
+        let mut dest = vec![[0u8; 3]; number_of_pixels];
+        t.transform_pixels(src.as_slice(), dest.as_mut_slice());
+        let mut buf = Vec::with_capacity(number_of_pixels * ColorSpace::RGB.num_components());
+        dest.iter().for_each(|e| buf.extend_from_slice(e));
+        Some((width as u32, height as u32, buf))
     }
 }
 

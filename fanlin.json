@@ -3,6 +3,7 @@
   "bind_addr": "0.0.0.0",
   "max_clients": 50,
   "fallback_path": "/baz/no_img.jpg",
+  "profile_path": "profiles/default.icc",
   "client": {
     "s3": {
       "aws_region": "ap-northeast-1",
