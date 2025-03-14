@@ -434,11 +434,11 @@ impl State {
                 let k = raw[i + 3] as f32;
                 let c = cb / k + y;
                 let m = cr / k + y;
-                let y = y;
+                let ye = y;
                 let k = 255.0f32 - k;
                 raw[i] = c as u8;
                 raw[i + 1] = m as u8;
-                raw[i + 2] = y as u8;
+                raw[i + 2] = ye as u8;
                 raw[i + 3] = k as u8;
                 i += 4;
             }
