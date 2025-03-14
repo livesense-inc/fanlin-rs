@@ -172,20 +172,13 @@ impl State {
         // https://docs.rs/image/latest/image/struct.ImageReader.html
         let cursor = std::io::Cursor::new(original);
         let reader = ImageReader::new(cursor).with_guessed_format()?;
-        let format = match reader.format() {
-            Some(f) => match f {
-                ImageFormat::Gif => f,
-                _ if params.use_webp() && content.webp_accepted() => ImageFormat::WebP,
-                _ if params.use_avif() && content.avif_accepted() => ImageFormat::Avif,
-                _ => f,
-            },
+        let mut format = match reader.format() {
+            Some(f) => f,
             None => return self.process_unknown_format(reader.into_inner().into_inner()),
         };
         if params.as_is() {
-            return Ok((
-                format.to_mime_type(),
-                reader.into_inner().into_inner().to_owned(),
-            ));
+            let orig = reader.into_inner().into_inner().to_owned();
+            return Ok((format.to_mime_type(), orig));
         }
         if format == ImageFormat::Gif {
             return self.process_gif(reader.into_inner().into_inner(), params);
@@ -242,6 +235,11 @@ impl State {
             }
         }
         let mut buffer = std::io::Cursor::new(Vec::new());
+        if params.use_webp() && content.webp_accepted() {
+            format = ImageFormat::WebP;
+        } else if params.use_avif() && content.avif_accepted() {
+            format = ImageFormat::Avif;
+        }
         match format {
             // https://docs.rs/image/latest/image/codecs/index.html
             ImageFormat::Png => {
