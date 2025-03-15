@@ -15,6 +15,8 @@ this repository is aimed to be yet another [fanlin](https://github.com/livesense
 * https://rustup.rs/
 * https://docs.docker.com/manuals/
 * https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
+* Dependencies:
+  * `liblcms2-dev`
 
 ```
 $ docker compose up
