@@ -25,11 +25,12 @@ RUN set -eux; \
 # https://github.com/GoogleContainerTools/distroless
 # https://console.cloud.google.com/gcr/images/distroless/GLOBAL
 FROM gcr.io/distroless/cc-debian12:nonroot-amd64
-COPY --from=apps /usr/src/app/target/container/fanlin-rs /usr/local/bin/fanlin-rs
-COPY --from=apps /usr/src/app/profiles/default.icc       /var/lib/fanlin-rs/
-COPY --from=deps /usr/local/lib/libjemalloc.so.2         /lib/x86_64-linux-gnu/
-COPY --from=deps /lib/x86_64-linux-gnu/liblcms2.so.*     /lib/x86_64-linux-gnu/
-COPY --from=deps /lib/x86_64-linux-gnu/libm.so.*         /lib/x86_64-linux-gnu/
+COPY --from=apps --chmod=755 /usr/src/app/target/container/fanlin-rs /usr/local/bin/fanlin
+COPY --from=apps --chmod=644 /usr/src/app/profiles/default.icc       /var/lib/fanlin/
+COPY --from=deps --chmod=644 /usr/local/lib/libjemalloc.so.2         /lib/x86_64-linux-gnu/
+COPY --from=deps --chmod=644 /lib/x86_64-linux-gnu/liblcms2.so.*     /lib/x86_64-linux-gnu/
+COPY --from=deps --chmod=644 /lib/x86_64-linux-gnu/libssl.so.*       /lib/x86_64-linux-gnu/
+COPY --from=deps --chmod=644 /lib/x86_64-linux-gnu/libcrypto.so.*    /lib/x86_64-linux-gnu/
 ENV LD_PRELOAD=/lib/x86_64-linux-gnu/libjemalloc.so.2
-ENTRYPOINT ["/usr/local/bin/fanlin-rs"]
+ENTRYPOINT ["/usr/local/bin/fanlin"]
 CMD ["--help"]
