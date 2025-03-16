@@ -404,6 +404,7 @@ impl State {
         };
         let srgb_prof = lcms2::Profile::new_srgb();
         // https://docs.rs/lcms2/latest/lcms2/struct.Transform.html
+        // OPTIMIZE: 40ms elapsed for create a transform object
         let t = match lcms2::Transform::<[u8; 4], [u8; 3]>::new(
             &orig_prof,
             pixel_format,
