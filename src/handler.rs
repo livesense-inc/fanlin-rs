@@ -396,6 +396,9 @@ impl State {
     }
 
     fn convert_jpeg_color_if_needed(&self, original: &[u8]) -> Option<(u32, u32, Vec<u8>)> {
+        if !self.use_embedded_profile && self.cmyk2rgb.is_none() {
+            return None;
+        }
         // https://docs.rs/zune-jpeg/latest/zune_jpeg/struct.JpegDecoder.html
         let mut decoder = zune_jpeg::JpegDecoder::new(original);
         decoder.decode_headers().ok()?;
