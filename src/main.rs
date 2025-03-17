@@ -72,7 +72,12 @@ async fn main() {
             |_| {},
         );
     if let Some(path) = cfg.profile_path {
-        state.load_icc_profile(path).await;
+        state.create_cmyk_to_rgb_converter(path).await;
+    }
+    if let Some(flag) = cfg.use_embedded_profile {
+        if flag {
+            state.enable_embedded_profile_utilization();
+        }
     }
     // https://github.com/tower-rs/tower-http/blob/main/examples/axum-key-value-store/src/main.rs
     // https://docs.rs/axum/latest/axum/middleware/index.html

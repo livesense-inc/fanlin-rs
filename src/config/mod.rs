@@ -27,6 +27,7 @@ pub struct Config {
     pub max_clients: usize,
     pub fallback_path: Option<String>,
     pub profile_path: Option<String>,
+    pub use_embedded_profile: Option<bool>,
     pub suppress_logging: Option<bool>,
     pub client: Client,
     pub providers: Vec<Provider>,
@@ -65,6 +66,7 @@ fn test_legit_config() {
           "max_clients": 1024,
           "fallback_path": "/foo/no_img.jpg",
           "profile_path": "/bar/default.icc",
+          "use_embedded_profile": true,
           "client": {
             "s3": {
               "aws_region": "ap-northeast-1",
@@ -96,6 +98,7 @@ fn test_legit_config() {
     assert_eq!(got.max_clients, 1024);
     assert_eq!(got.fallback_path, Some("/foo/no_img.jpg".to_string()));
     assert_eq!(got.profile_path, Some("/bar/default.icc".to_string()));
+    assert_eq!(got.use_embedded_profile, Some(true));
     assert_eq!(got.client.s3.aws_region, "ap-northeast-1".to_string());
     assert_eq!(
         got.client.s3.aws_endpoint_url,

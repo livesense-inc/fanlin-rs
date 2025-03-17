@@ -16,7 +16,8 @@ pub struct State {
     client: infra::Client,
     fallback_images: HashMap<String, Vec<u8>>,
     fallback_path: String,
-    icc_profile: Option<Vec<u8>>,
+    cmyk2rgb: Option<CMYK2RGB>,
+    use_embedded_profile: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -27,18 +28,25 @@ struct Provider {
     success_even_no_content: bool,
 }
 
+#[derive(Debug)]
+struct CMYK2RGB {
+    t: lcms2::Transform<[u8; 4], [u8; 3], lcms2::ThreadContext, lcms2::DisallowCache>,
+}
+
 impl State {
     pub fn new(providers: Vec<config::Provider>, client: infra::Client) -> Self {
         let router = Self::make_router(providers);
         let fallback_images: HashMap<String, Vec<u8>> = HashMap::new();
         let fallback_path = "".to_string();
-        let icc_profile = None;
+        let cmyk2rgb = None;
+        let use_embedded_profile = false;
         Self {
             router,
             client,
             fallback_images,
             fallback_path,
-            icc_profile,
+            cmyk2rgb,
+            use_embedded_profile,
         }
     }
 
@@ -74,11 +82,22 @@ impl State {
         router
     }
 
-    pub async fn load_icc_profile<P: AsRef<std::path::Path>>(&mut self, path: P) {
-        match tokio::fs::read(path).await {
-            Ok(d) => self.icc_profile = Some(d),
-            Err(e) => tracing::warn!("failed to load an icc profile; {e:?}"),
+    pub async fn create_cmyk_to_rgb_converter<P: AsRef<std::path::Path>>(&mut self, path: P) {
+        let icc = match tokio::fs::read(path).await {
+            Ok(d) => d,
+            Err(e) => {
+                tracing::warn!("failed to load an icc profile; {e:?}");
+                return;
+            }
+        };
+        match CMYK2RGB::with_icc_profile(icc.as_slice()) {
+            Some(t) => self.cmyk2rgb = Some(t),
+            None => tracing::warn!("failed to create a transform object"),
         }
+    }
+
+    pub fn enable_embedded_profile_utilization(&mut self) {
+        self.use_embedded_profile = true;
     }
 
     pub async fn with_fallback(
@@ -383,43 +402,15 @@ impl State {
         let (width, height) = decoder.dimensions()?;
         let color_space = decoder.get_input_colorspace()?;
         // https://docs.rs/zune-core/latest/zune_core/colorspace/enum.ColorSpace.html
-        // https://docs.rs/lcms2/latest/lcms2/struct.PixelFormat.html
-        use lcms2::PixelFormat;
         use zune_jpeg::zune_core::colorspace::ColorSpace;
-        let (size, pixel_format) = match color_space {
-            ColorSpace::YCCK => (ColorSpace::YCCK.num_components(), PixelFormat::CMYK_8),
-            ColorSpace::CMYK => (ColorSpace::CMYK.num_components(), PixelFormat::CMYK_8),
+        let size = match color_space {
+            ColorSpace::YCCK => ColorSpace::YCCK.num_components(),
+            ColorSpace::CMYK => ColorSpace::CMYK.num_components(),
             _ => return None,
         };
         if size > 4 {
             return None;
         }
-        // https://docs.rs/lcms2/latest/lcms2/struct.Profile.html
-        let orig_prof = match decoder.icc_profile() {
-            Some(d) => lcms2::Profile::new_icc(d.as_slice()).ok()?,
-            None => match &self.icc_profile {
-                Some(d) => lcms2::Profile::new_icc(d.as_slice()).ok()?,
-                None => return None,
-            },
-        };
-        let srgb_prof = lcms2::Profile::new_srgb();
-        // https://docs.rs/lcms2/latest/lcms2/struct.Transform.html
-        // OPTIMIZE: 40ms elapsed for create a transform object
-        let t = match lcms2::Transform::<[u8; 4], [u8; 3]>::new(
-            &orig_prof,
-            pixel_format,
-            &srgb_prof,
-            PixelFormat::RGB_8,
-            lcms2::Intent::Perceptual,
-        ) {
-            Ok(t) => t,
-            Err(e) => {
-                tracing::warn!(
-                    "failed to create a transform object for converting color space; {color_space:?}, {e:?}"
-                );
-                return None;
-            }
-        };
         let opts = decoder.get_options().jpeg_set_out_colorspace(color_space);
         decoder.set_options(opts);
         let mut raw = decoder.decode().ok()?;
@@ -449,10 +440,52 @@ impl State {
             .map(|e| e.try_into().map_or([0u8; 4], |v| v))
             .collect::<Vec<_>>();
         let mut dest = vec![[0u8; 3]; number_of_pixels];
-        t.transform_pixels(src.as_slice(), dest.as_mut_slice());
+        if self.use_embedded_profile {
+            match decoder.icc_profile() {
+                Some(d) => match CMYK2RGB::with_icc_profile(d.as_slice()) {
+                    Some(x) => {
+                        x.convert(&src, &mut dest);
+                    }
+                    None => {
+                        self.cmyk2rgb.as_ref()?.convert(&src, &mut dest);
+                    }
+                },
+                None => {
+                    self.cmyk2rgb.as_ref()?.convert(&src, &mut dest);
+                }
+            };
+        } else {
+            self.cmyk2rgb.as_ref()?.convert(&src, &mut dest);
+        };
         let mut buf = Vec::with_capacity(number_of_pixels * ColorSpace::RGB.num_components());
         dest.iter().for_each(|e| buf.extend_from_slice(e));
         Some((width as u32, height as u32, buf))
+    }
+}
+
+impl CMYK2RGB {
+    pub fn with_icc_profile(d: &[u8]) -> Option<Self> {
+        // https://github.com/kornelski/rust-lcms2/blob/main/examples/thread.rs
+        let ctx = lcms2::ThreadContext::new();
+        // https://docs.rs/lcms2/latest/lcms2/struct.Profile.html
+        let src = lcms2::Profile::new_icc_context(&ctx, d).ok()?;
+        let dst = lcms2::Profile::new_srgb_context(&ctx);
+        // https://docs.rs/lcms2/latest/lcms2/struct.PixelFormat.html
+        let cmyk = lcms2::PixelFormat::CMYK_8;
+        let rgb = lcms2::PixelFormat::RGB_8;
+        let itt = lcms2::Intent::Perceptual;
+        let flag = lcms2::Flags::NO_CACHE;
+        // https://docs.rs/lcms2/latest/lcms2/struct.Transform.html
+        // This creation takes 40ms.
+        let t = lcms2::Transform::<[u8; 4], [u8; 3], _, _>::new_flags_context(
+            ctx, &src, cmyk, &dst, rgb, itt, flag,
+        )
+        .ok()?;
+        Some(Self { t })
+    }
+
+    pub fn convert(&self, src: &Vec<[u8; 4]>, dst: &mut Vec<[u8; 3]>) {
+        self.t.transform_pixels(src.as_slice(), dst.as_mut_slice());
     }
 }
 
