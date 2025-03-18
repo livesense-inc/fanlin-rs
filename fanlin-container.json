@@ -3,6 +3,7 @@
   "bind_addr": "0.0.0.0",
   "max_clients": 50,
   "profile_path": "/var/lib/fanlin/default.icc",
+  "use_embedded_profile": true,
   "client": {
     "s3": {
       "aws_region": "ap-northeast-1",
