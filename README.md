@@ -1,3 +1,4 @@
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/livesense-inc/fanlin-rs)
 ![Test](https://github.com/livesense-inc/fanlin-rs/actions/workflows/test.yaml/badge.svg?branch=main)
 ![Release](https://github.com/livesense-inc/fanlin-rs/actions/workflows/release.yaml/badge.svg)
 
