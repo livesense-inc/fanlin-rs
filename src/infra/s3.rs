@@ -99,12 +99,11 @@ impl Client {
 
     async fn create_bucket(&self) -> Result<String, Box<dyn std::error::Error>> {
         // https://docs.rs/aws-sdk-s3/latest/aws_sdk_s3/client/struct.Client.html#method.create_bucket
-        let var = "";
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .expect("time went backwards")
             .as_millis();
-        let name = format!("rust-test-{timestamp}-{var:p}");
+        let name = format!("rust-test-{timestamp}");
         let cfg = aws_sdk_s3::types::builders::CreateBucketConfigurationBuilder::default()
             .location_constraint(aws_sdk_s3::types::BucketLocationConstraint::ApNortheast1)
             .build();
