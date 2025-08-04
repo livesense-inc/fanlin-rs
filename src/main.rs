@@ -216,10 +216,10 @@ fn try_create_header(
     timer: Option<simple_server_timing_header::Timer>,
 ) -> Result<header::HeaderMap, Box<dyn std::error::Error>> {
     let mut headers = header::HeaderMap::new();
-    let content_type = header::HeaderValue::from_str(content_type)?;
+    let content_type = header::HeaderValue::from_static(content_type);
     headers.try_insert(header::CONTENT_TYPE, content_type)?;
     if params.use_webp() || params.use_avif() {
-        let vary = header::HeaderValue::from_str(VARY_ACCEPT)?;
+        let vary = header::HeaderValue::from_static(VARY_ACCEPT);
         headers.try_insert(header::VARY, vary)?;
     }
     if let Some(timer) = timer {
