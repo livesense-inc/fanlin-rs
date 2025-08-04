@@ -578,254 +578,259 @@ fn clean_path(raw_path: &str, prefix: &str) -> Result<String, Box<dyn std::error
     Ok(target_path)
 }
 
-#[test]
-fn test_build_bucket_and_object_key() {
-    #[derive(Debug)]
-    struct Case {
-        src: &'static str,
-        req_prefix: &'static str,
-        req_path: &'static str,
-        error: bool,
-        want: (&'static str, &'static str),
-    }
-    let cases = [
-        Case {
-            src: "s3://local-test/images",
-            req_prefix: "foo",
-            req_path: "foo/dog.gif",
-            error: false,
-            want: ("local-test", "images/dog.gif"),
-        },
-        Case {
-            src: "s3://local-test/images/",
-            req_prefix: "/foo/",
-            req_path: "/foo/dog.gif",
-            error: false,
-            want: ("local-test", "images/dog.gif"),
-        },
-        Case {
-            src: "s3://local-test/images",
-            req_prefix: "/foo",
-            req_path: "/foo/dog.gif",
-            error: false,
-            want: ("local-test", "images/dog.gif"),
-        },
-        Case {
-            src: "s3://local-test/images/",
-            req_prefix: "foo/",
-            req_path: "foo/dog.gif",
-            error: false,
-            want: ("local-test", "images/dog.gif"),
-        },
-        Case {
-            src: "s3://local-test/images/",
-            req_prefix: "foo",
-            req_path: "/foo/dog.gif",
-            error: false,
-            want: ("local-test", "images/dog.gif"),
-        },
-        Case {
-            src: "s3://local-test/images",
-            req_prefix: "foo",
-            req_path: "foo/犬.gif",
-            error: false,
-            want: ("local-test", "images/犬.gif"),
-        },
-        Case {
-            src: "s3://local-test/images",
-            req_prefix: "foo",
-            req_path: "foo/%E7%8A%AC.gif",
-            error: false,
-            want: ("local-test", "images/犬.gif"),
-        },
-        Case {
-            src: "s3://local-test/images/animals",
-            req_prefix: "foo",
-            req_path: "foo/bar/dog.gif",
-            error: false,
-            want: ("local-test", "images/animals/bar/dog.gif"),
-        },
-    ];
-    for c in cases {
-        let uri = c.src.parse::<axum::http::uri::Uri>().expect("case bug");
-        match build_bucket_and_object_key(&uri, c.req_prefix, c.req_path) {
-            Ok((got_bucket, got_key)) => {
-                assert!(!c.error, "case: {c:?}");
-                let (want_bucket, want_key) = c.want;
-                assert_eq!(got_bucket, want_bucket);
-                assert_eq!(got_key, want_key);
-            }
-            Err(err) => {
-                assert!(c.error, "case: {c:?}, error: {err}");
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_build_bucket_and_object_key() {
+        #[derive(Debug)]
+        struct Case {
+            src: &'static str,
+            req_prefix: &'static str,
+            req_path: &'static str,
+            error: bool,
+            want: (&'static str, &'static str),
+        }
+        let cases = [
+            Case {
+                src: "s3://local-test/images",
+                req_prefix: "foo",
+                req_path: "foo/dog.gif",
+                error: false,
+                want: ("local-test", "images/dog.gif"),
+            },
+            Case {
+                src: "s3://local-test/images/",
+                req_prefix: "/foo/",
+                req_path: "/foo/dog.gif",
+                error: false,
+                want: ("local-test", "images/dog.gif"),
+            },
+            Case {
+                src: "s3://local-test/images",
+                req_prefix: "/foo",
+                req_path: "/foo/dog.gif",
+                error: false,
+                want: ("local-test", "images/dog.gif"),
+            },
+            Case {
+                src: "s3://local-test/images/",
+                req_prefix: "foo/",
+                req_path: "foo/dog.gif",
+                error: false,
+                want: ("local-test", "images/dog.gif"),
+            },
+            Case {
+                src: "s3://local-test/images/",
+                req_prefix: "foo",
+                req_path: "/foo/dog.gif",
+                error: false,
+                want: ("local-test", "images/dog.gif"),
+            },
+            Case {
+                src: "s3://local-test/images",
+                req_prefix: "foo",
+                req_path: "foo/犬.gif",
+                error: false,
+                want: ("local-test", "images/犬.gif"),
+            },
+            Case {
+                src: "s3://local-test/images",
+                req_prefix: "foo",
+                req_path: "foo/%E7%8A%AC.gif",
+                error: false,
+                want: ("local-test", "images/犬.gif"),
+            },
+            Case {
+                src: "s3://local-test/images/animals",
+                req_prefix: "foo",
+                req_path: "foo/bar/dog.gif",
+                error: false,
+                want: ("local-test", "images/animals/bar/dog.gif"),
+            },
+        ];
+        for c in cases {
+            let uri = c.src.parse::<axum::http::uri::Uri>().expect("case bug");
+            match build_bucket_and_object_key(&uri, c.req_prefix, c.req_path) {
+                Ok((got_bucket, got_key)) => {
+                    assert!(!c.error, "case: {c:?}");
+                    let (want_bucket, want_key) = c.want;
+                    assert_eq!(got_bucket, want_bucket);
+                    assert_eq!(got_key, want_key);
+                }
+                Err(err) => {
+                    assert!(c.error, "case: {c:?}, error: {err}");
+                }
             }
         }
     }
-}
 
-#[test]
-fn test_buid_url() {
-    #[derive(Debug)]
-    struct Case {
-        src: &'static str,
-        req_prefix: &'static str,
-        req_path: &'static str,
-        want: &'static str,
+    #[test]
+    fn test_buid_url() {
+        #[derive(Debug)]
+        struct Case {
+            src: &'static str,
+            req_prefix: &'static str,
+            req_path: &'static str,
+            want: &'static str,
+        }
+        let cases = [
+            Case {
+                src: "http://127.0.0.1/images",
+                req_prefix: "foo",
+                req_path: "foo/dog.gif",
+                want: "http://127.0.0.1/images/dog.gif",
+            },
+            Case {
+                src: "http://127.0.0.1/images/",
+                req_prefix: "/foo/",
+                req_path: "/foo/dog.gif",
+                want: "http://127.0.0.1/images/dog.gif",
+            },
+            Case {
+                src: "http://127.0.0.1/images",
+                req_prefix: "/foo",
+                req_path: "/foo/dog.gif",
+                want: "http://127.0.0.1/images/dog.gif",
+            },
+            Case {
+                src: "http://127.0.0.1/images/",
+                req_prefix: "foo/",
+                req_path: "foo/dog.gif",
+                want: "http://127.0.0.1/images/dog.gif",
+            },
+            Case {
+                src: "http://127.0.0.1/images/",
+                req_prefix: "foo",
+                req_path: "/foo/dog.gif",
+                want: "http://127.0.0.1/images/dog.gif",
+            },
+            Case {
+                src: "http://127.0.0.1/images",
+                req_prefix: "foo",
+                req_path: "foo/犬.gif",
+                want: "http://127.0.0.1/images/%E7%8A%AC.gif",
+            },
+            Case {
+                src: "http://127.0.0.1/images",
+                req_prefix: "foo",
+                req_path: "foo/%E7%8A%AC.gif",
+                want: "http://127.0.0.1/images/%E7%8A%AC.gif",
+            },
+            Case {
+                src: "http://127.0.0.1/images/animals",
+                req_prefix: "foo",
+                req_path: "foo/bar/dog.gif",
+                want: "http://127.0.0.1/images/animals/bar/dog.gif",
+            },
+        ];
+        for c in cases {
+            let uri = c.src.parse::<axum::http::uri::Uri>().expect("case bug");
+            let got = build_url(&uri, c.req_prefix, c.req_path).expect("error");
+            assert_eq!(got, c.want, "case: {c:?}");
+        }
     }
-    let cases = [
-        Case {
-            src: "http://127.0.0.1/images",
-            req_prefix: "foo",
-            req_path: "foo/dog.gif",
-            want: "http://127.0.0.1/images/dog.gif",
-        },
-        Case {
-            src: "http://127.0.0.1/images/",
-            req_prefix: "/foo/",
-            req_path: "/foo/dog.gif",
-            want: "http://127.0.0.1/images/dog.gif",
-        },
-        Case {
-            src: "http://127.0.0.1/images",
-            req_prefix: "/foo",
-            req_path: "/foo/dog.gif",
-            want: "http://127.0.0.1/images/dog.gif",
-        },
-        Case {
-            src: "http://127.0.0.1/images/",
-            req_prefix: "foo/",
-            req_path: "foo/dog.gif",
-            want: "http://127.0.0.1/images/dog.gif",
-        },
-        Case {
-            src: "http://127.0.0.1/images/",
-            req_prefix: "foo",
-            req_path: "/foo/dog.gif",
-            want: "http://127.0.0.1/images/dog.gif",
-        },
-        Case {
-            src: "http://127.0.0.1/images",
-            req_prefix: "foo",
-            req_path: "foo/犬.gif",
-            want: "http://127.0.0.1/images/%E7%8A%AC.gif",
-        },
-        Case {
-            src: "http://127.0.0.1/images",
-            req_prefix: "foo",
-            req_path: "foo/%E7%8A%AC.gif",
-            want: "http://127.0.0.1/images/%E7%8A%AC.gif",
-        },
-        Case {
-            src: "http://127.0.0.1/images/animals",
-            req_prefix: "foo",
-            req_path: "foo/bar/dog.gif",
-            want: "http://127.0.0.1/images/animals/bar/dog.gif",
-        },
-    ];
-    for c in cases {
-        let uri = c.src.parse::<axum::http::uri::Uri>().expect("case bug");
-        let got = build_url(&uri, c.req_prefix, c.req_path).expect("error");
-        assert_eq!(got, c.want, "case: {c:?}");
-    }
-}
 
-#[test]
-fn test_buid_local_path() {
-    #[derive(Debug)]
-    struct Case {
-        src: &'static str,
-        req_prefix: &'static str,
-        req_path: &'static str,
-        error: bool,
-        want: &'static str,
-    }
-    let cases = [
-        Case {
-            src: "file://locallhost/./images",
-            req_prefix: "foo",
-            req_path: "foo/dog.gif",
-            error: false,
-            want: "images/dog.gif",
-        },
-        Case {
-            src: "file://locallhost/./images/",
-            req_prefix: "/foo/",
-            req_path: "/foo/dog.gif",
-            error: false,
-            want: "images/dog.gif",
-        },
-        Case {
-            src: "file://locallhost/./images",
-            req_prefix: "/foo",
-            req_path: "/foo/dog.gif",
-            error: false,
-            want: "images/dog.gif",
-        },
-        Case {
-            src: "file://locallhost/./images/",
-            req_prefix: "foo/",
-            req_path: "foo/dog.gif",
-            error: false,
-            want: "images/dog.gif",
-        },
-        Case {
-            src: "file://locallhost/./images/",
-            req_prefix: "foo",
-            req_path: "/foo/dog.gif",
-            error: false,
-            want: "images/dog.gif",
-        },
-        Case {
-            src: "file://locallhost/./images",
-            req_prefix: "foo",
-            req_path: "foo/犬.gif",
-            error: false,
-            want: "images/犬.gif",
-        },
-        Case {
-            src: "file://locallhost/./images",
-            req_prefix: "foo",
-            req_path: "foo/%E7%8A%AC.gif",
-            error: false,
-            want: "images/犬.gif",
-        },
-        Case {
-            src: "file://locallhost/./images/animals",
-            req_prefix: "foo",
-            req_path: "foo/bar/dog.gif",
-            error: false,
-            want: "images/animals/bar/dog.gif",
-        },
-        Case {
-            src: "file://localhost/var/lib/images",
-            req_prefix: "foo",
-            req_path: "foo/dog.gif",
-            error: false,
-            want: "/var/lib/images/dog.gif",
-        },
-        Case {
-            src: "file://localhost/var/lib/images",
-            req_prefix: "foo",
-            req_path: "foo/../../etc/passwd",
-            error: false,
-            want: "/var/lib/images/etc/passwd",
-        },
-        Case {
-            src: "file://localhost/var/lib/images",
-            req_prefix: "foo",
-            req_path: "foo/.//....//..../etc/passwd",
-            error: false,
-            want: "/var/lib/images/..../..../etc/passwd",
-        },
-    ];
-    for c in cases {
-        let uri = c.src.parse::<axum::http::uri::Uri>().expect("case bug");
-        match build_local_path(&uri, c.req_prefix, c.req_path) {
-            Ok(got) => {
-                assert!(!c.error, "case: {c:?}");
-                assert_eq!(got, c.want, "case: {c:?}");
-            }
-            Err(err) => {
-                assert!(c.error, "case: {c:?}, error: {err}");
+    #[test]
+    fn test_buid_local_path() {
+        #[derive(Debug)]
+        struct Case {
+            src: &'static str,
+            req_prefix: &'static str,
+            req_path: &'static str,
+            error: bool,
+            want: &'static str,
+        }
+        let cases = [
+            Case {
+                src: "file://locallhost/./images",
+                req_prefix: "foo",
+                req_path: "foo/dog.gif",
+                error: false,
+                want: "images/dog.gif",
+            },
+            Case {
+                src: "file://locallhost/./images/",
+                req_prefix: "/foo/",
+                req_path: "/foo/dog.gif",
+                error: false,
+                want: "images/dog.gif",
+            },
+            Case {
+                src: "file://locallhost/./images",
+                req_prefix: "/foo",
+                req_path: "/foo/dog.gif",
+                error: false,
+                want: "images/dog.gif",
+            },
+            Case {
+                src: "file://locallhost/./images/",
+                req_prefix: "foo/",
+                req_path: "foo/dog.gif",
+                error: false,
+                want: "images/dog.gif",
+            },
+            Case {
+                src: "file://locallhost/./images/",
+                req_prefix: "foo",
+                req_path: "/foo/dog.gif",
+                error: false,
+                want: "images/dog.gif",
+            },
+            Case {
+                src: "file://locallhost/./images",
+                req_prefix: "foo",
+                req_path: "foo/犬.gif",
+                error: false,
+                want: "images/犬.gif",
+            },
+            Case {
+                src: "file://locallhost/./images",
+                req_prefix: "foo",
+                req_path: "foo/%E7%8A%AC.gif",
+                error: false,
+                want: "images/犬.gif",
+            },
+            Case {
+                src: "file://locallhost/./images/animals",
+                req_prefix: "foo",
+                req_path: "foo/bar/dog.gif",
+                error: false,
+                want: "images/animals/bar/dog.gif",
+            },
+            Case {
+                src: "file://localhost/var/lib/images",
+                req_prefix: "foo",
+                req_path: "foo/dog.gif",
+                error: false,
+                want: "/var/lib/images/dog.gif",
+            },
+            Case {
+                src: "file://localhost/var/lib/images",
+                req_prefix: "foo",
+                req_path: "foo/../../etc/passwd",
+                error: false,
+                want: "/var/lib/images/etc/passwd",
+            },
+            Case {
+                src: "file://localhost/var/lib/images",
+                req_prefix: "foo",
+                req_path: "foo/.//....//..../etc/passwd",
+                error: false,
+                want: "/var/lib/images/..../..../etc/passwd",
+            },
+        ];
+        for c in cases {
+            let uri = c.src.parse::<axum::http::uri::Uri>().expect("case bug");
+            match build_local_path(&uri, c.req_prefix, c.req_path) {
+                Ok(got) => {
+                    assert!(!c.error, "case: {c:?}");
+                    assert_eq!(got, c.want, "case: {c:?}");
+                }
+                Err(err) => {
+                    assert!(c.error, "case: {c:?}, error: {err}");
+                }
             }
         }
     }

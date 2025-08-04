@@ -293,214 +293,221 @@ async fn shutdown_signal() {
     }
 }
 
-#[tokio::test]
-async fn test_generic_handler() {
-    let client = infra::Client::for_test().await;
-    let mut bucket_manager = infra::s3::BucketManager::new(client.s3.clone());
-    let bucket = bucket_manager
-        .create()
-        .await
-        .expect("failed to create a bucket");
-    bucket_manager
-        .upload_fixture_files(&bucket, "images", "images")
-        .await
-        .expect("failed to upload fixture files");
-    let (port, mock_server) = infra::web::run_mock_server("/images", "images").await;
-    let providers = Vec::from([
-        config::Provider {
-            path: "foo".to_string(),
-            src: format!("s3://{bucket}/images"),
-            fallback_path: None,
-            success_even_no_content: None,
-        },
-        config::Provider {
-            path: "bar".to_string(),
-            src: format!("http://127.0.0.1:{port}/images"),
-            fallback_path: None,
-            success_even_no_content: None,
-        },
-        config::Provider {
-            path: "baz".to_string(),
-            src: "file://localhost/./images".to_string(),
-            fallback_path: None,
-            success_even_no_content: None,
-        },
-        config::Provider {
-            path: "/".to_string(),
-            src: "file://localhost/./images".to_string(),
-            fallback_path: None,
-            success_even_no_content: None,
-        },
-    ]);
-    let state = std::sync::Arc::new(handler::State::new(providers, client));
-    struct Case {
-        url: &'static str,
-        want_status: StatusCode,
-        want_type: &'static str,
-    }
-    let cases = [
-        Case {
-            url: "http://127.0.0.1:3000/foo/lenna.jpg",
-            want_status: StatusCode::OK,
-            want_type: "image/jpeg",
-        },
-        Case {
-            url: "http://127.0.0.1:3000/foo/lenna.jpg?w=300&h=200",
-            want_status: StatusCode::OK,
-            want_type: "image/jpeg",
-        },
-        Case {
-            url: "http://127.0.0.1:3000/foo/lenna.jpg?w=300&h=200&avif=true",
-            want_status: StatusCode::OK,
-            want_type: "image/avif",
-        },
-        Case {
-            url: "http://127.0.0.1:3000/foo/lenna.jpg?w=300&h=200&webp=true",
-            want_status: StatusCode::OK,
-            want_type: "image/webp",
-        },
-        Case {
-            url: "http://127.0.0.1:3000/foo/lenna.jpg?w=9999&h=9999",
-            want_status: StatusCode::BAD_REQUEST,
-            want_type: "text/plain; charset=utf-8",
-        },
-        Case {
-            url: "http://127.0.0.1:3000/foo/lenna.png",
-            want_status: StatusCode::OK,
-            want_type: "image/png",
-        },
-        Case {
-            url: "http://127.0.0.1:3000/foo/lenna.png?w=300&h=200&avif=true",
-            want_status: StatusCode::OK,
-            want_type: "image/avif",
-        },
-        Case {
-            url: "http://127.0.0.1:3000/foo/lenna.gif",
-            want_status: StatusCode::OK,
-            want_type: "image/gif",
-        },
-        Case {
-            url: "http://127.0.0.1:3000/foo/logo.svg",
-            want_status: StatusCode::OK,
-            want_type: "image/svg+xml",
-        },
-        Case {
-            url: "http://127.0.0.1:3000/foo/lenna.gif?w=300&h=200&webp=true",
-            want_status: StatusCode::OK,
-            want_type: "image/gif",
-        },
-        Case {
-            url: "http://127.0.0.1:3000/foo/lenna.txt",
-            want_status: StatusCode::INTERNAL_SERVER_ERROR,
-            want_type: "text/plain; charset=utf-8",
-        },
-        Case {
-            url: "http://127.0.0.1:3000/foo/who.jpg",
-            want_status: StatusCode::NOT_FOUND,
-            want_type: "text/plain; charset=utf-8",
-        },
-        Case {
-            url: "http://127.0.0.1:3000/bar/lenna.jpg",
-            want_status: StatusCode::OK,
-            want_type: "image/jpeg",
-        },
-        Case {
-            url: "http://127.0.0.1:3000/bar/who.jpg",
-            want_status: StatusCode::NOT_FOUND,
-            want_type: "text/plain; charset=utf-8",
-        },
-        Case {
-            url: "http://127.0.0.1:3000/baz/lenna.jpg",
-            want_status: StatusCode::OK,
-            want_type: "image/jpeg",
-        },
-        Case {
-            url: "http://127.0.0.1:3000/baz/who.jpg",
-            want_status: StatusCode::NOT_FOUND,
-            want_type: "text/plain; charset=utf-8",
-        },
-        Case {
-            url: "http://127.0.0.1:3000/lenna.jpg",
-            want_status: StatusCode::OK,
-            want_type: "image/jpeg",
-        },
-    ];
-    for c in cases {
-        let uri = c
-            .url
-            .parse::<axum::http::Uri>()
-            .expect("failed to parse a string as an URI");
-        let query: Query<query::Query> =
-            axum::extract::Query::try_from_uri(&uri).expect("failed to parse query from URI");
-        let mut headers = header::HeaderMap::new();
-        headers
-            .try_insert(
-                header::ACCEPT,
-                header::HeaderValue::from_str(image::ImageFormat::WebP.to_mime_type()).unwrap(),
-            )
-            .unwrap();
-        headers
-            .try_append(
-                header::ACCEPT,
-                header::HeaderValue::from_str(image::ImageFormat::Avif.to_mime_type()).unwrap(),
-            )
-            .unwrap();
-        let got = generic_handler(headers, OriginalUri(uri), query, State(state.clone()))
-            .await
-            .into_response();
-        assert_eq!(
-            got.status(),
-            c.want_status,
-            "case: {}, bucket: {bucket}",
-            c.url
-        );
-        assert_eq!(
-            got.headers().get(header::CONTENT_TYPE).unwrap(),
-            c.want_type,
-            "case: {}, bucket: {bucket}",
-            c.url
-        );
-    }
-    bucket_manager.clean().await.unwrap();
-    mock_server.abort();
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::extract::Query;
+    use axum::response::IntoResponse;
 
-#[test]
-fn test_extract_accepted_image_formats() {
-    struct Case {
-        v: Option<&'static str>,
-        assert: fn(content::Format),
+    #[tokio::test]
+    async fn test_generic_handler() {
+        let client = infra::Client::for_test().await;
+        let mut bucket_manager = infra::s3::BucketManager::new(client.s3.clone());
+        let bucket = bucket_manager
+            .create()
+            .await
+            .expect("failed to create a bucket");
+        bucket_manager
+            .upload_fixture_files(&bucket, "images", "images")
+            .await
+            .expect("failed to upload fixture files");
+        let (port, mock_server) = infra::web::run_mock_server("/images", "images").await;
+        let providers = Vec::from([
+            config::Provider {
+                path: "foo".to_string(),
+                src: format!("s3://{bucket}/images"),
+                fallback_path: None,
+                success_even_no_content: None,
+            },
+            config::Provider {
+                path: "bar".to_string(),
+                src: format!("http://127.0.0.1:{port}/images"),
+                fallback_path: None,
+                success_even_no_content: None,
+            },
+            config::Provider {
+                path: "baz".to_string(),
+                src: "file://localhost/./images".to_string(),
+                fallback_path: None,
+                success_even_no_content: None,
+            },
+            config::Provider {
+                path: "/".to_string(),
+                src: "file://localhost/./images".to_string(),
+                fallback_path: None,
+                success_even_no_content: None,
+            },
+        ]);
+        let state = std::sync::Arc::new(handler::State::new(providers, client));
+        struct Case {
+            url: &'static str,
+            want_status: StatusCode,
+            want_type: &'static str,
+        }
+        let cases = [
+            Case {
+                url: "http://127.0.0.1:3000/foo/lenna.jpg",
+                want_status: StatusCode::OK,
+                want_type: "image/jpeg",
+            },
+            Case {
+                url: "http://127.0.0.1:3000/foo/lenna.jpg?w=300&h=200",
+                want_status: StatusCode::OK,
+                want_type: "image/jpeg",
+            },
+            Case {
+                url: "http://127.0.0.1:3000/foo/lenna.jpg?w=300&h=200&avif=true",
+                want_status: StatusCode::OK,
+                want_type: "image/avif",
+            },
+            Case {
+                url: "http://127.0.0.1:3000/foo/lenna.jpg?w=300&h=200&webp=true",
+                want_status: StatusCode::OK,
+                want_type: "image/webp",
+            },
+            Case {
+                url: "http://127.0.0.1:3000/foo/lenna.jpg?w=9999&h=9999",
+                want_status: StatusCode::BAD_REQUEST,
+                want_type: "text/plain; charset=utf-8",
+            },
+            Case {
+                url: "http://127.0.0.1:3000/foo/lenna.png",
+                want_status: StatusCode::OK,
+                want_type: "image/png",
+            },
+            Case {
+                url: "http://127.0.0.1:3000/foo/lenna.png?w=300&h=200&avif=true",
+                want_status: StatusCode::OK,
+                want_type: "image/avif",
+            },
+            Case {
+                url: "http://127.0.0.1:3000/foo/lenna.gif",
+                want_status: StatusCode::OK,
+                want_type: "image/gif",
+            },
+            Case {
+                url: "http://127.0.0.1:3000/foo/logo.svg",
+                want_status: StatusCode::OK,
+                want_type: "image/svg+xml",
+            },
+            Case {
+                url: "http://127.0.0.1:3000/foo/lenna.gif?w=300&h=200&webp=true",
+                want_status: StatusCode::OK,
+                want_type: "image/gif",
+            },
+            Case {
+                url: "http://127.0.0.1:3000/foo/lenna.txt",
+                want_status: StatusCode::INTERNAL_SERVER_ERROR,
+                want_type: "text/plain; charset=utf-8",
+            },
+            Case {
+                url: "http://127.0.0.1:3000/foo/who.jpg",
+                want_status: StatusCode::NOT_FOUND,
+                want_type: "text/plain; charset=utf-8",
+            },
+            Case {
+                url: "http://127.0.0.1:3000/bar/lenna.jpg",
+                want_status: StatusCode::OK,
+                want_type: "image/jpeg",
+            },
+            Case {
+                url: "http://127.0.0.1:3000/bar/who.jpg",
+                want_status: StatusCode::NOT_FOUND,
+                want_type: "text/plain; charset=utf-8",
+            },
+            Case {
+                url: "http://127.0.0.1:3000/baz/lenna.jpg",
+                want_status: StatusCode::OK,
+                want_type: "image/jpeg",
+            },
+            Case {
+                url: "http://127.0.0.1:3000/baz/who.jpg",
+                want_status: StatusCode::NOT_FOUND,
+                want_type: "text/plain; charset=utf-8",
+            },
+            Case {
+                url: "http://127.0.0.1:3000/lenna.jpg",
+                want_status: StatusCode::OK,
+                want_type: "image/jpeg",
+            },
+        ];
+        for c in cases {
+            let uri = c
+                .url
+                .parse::<axum::http::Uri>()
+                .expect("failed to parse a string as an URI");
+            let query: Query<query::Query> =
+                axum::extract::Query::try_from_uri(&uri).expect("failed to parse query from URI");
+            let mut headers = header::HeaderMap::new();
+            headers
+                .try_insert(
+                    header::ACCEPT,
+                    header::HeaderValue::from_str(image::ImageFormat::WebP.to_mime_type()).unwrap(),
+                )
+                .unwrap();
+            headers
+                .try_append(
+                    header::ACCEPT,
+                    header::HeaderValue::from_str(image::ImageFormat::Avif.to_mime_type()).unwrap(),
+                )
+                .unwrap();
+            let got = generic_handler(headers, OriginalUri(uri), query, State(state.clone()))
+                .await
+                .into_response();
+            assert_eq!(
+                got.status(),
+                c.want_status,
+                "case: {}, bucket: {bucket}",
+                c.url
+            );
+            assert_eq!(
+                got.headers().get(header::CONTENT_TYPE).unwrap(),
+                c.want_type,
+                "case: {}, bucket: {bucket}",
+                c.url
+            );
+        }
+        bucket_manager.clean().await.unwrap();
+        mock_server.abort();
     }
-    let cases = [
-        Case {
-            v: Some("text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"),
-            assert: |got| {
-                assert!(got.webp_accepted());
-                assert!(got.avif_accepted());
-            },
-        },
-        Case {
-            v: Some(""),
-            assert: |got| {
-                assert!(!got.webp_accepted());
-                assert!(!got.avif_accepted());
-            },
-        },
-        Case {
-            v: None,
-            assert: |got| {
-                assert!(!got.webp_accepted());
-                assert!(!got.avif_accepted());
-            },
+
+    #[test]
+    fn test_extract_accepted_image_formats() {
+        struct Case {
+            v: Option<&'static str>,
+            assert: fn(content::Format),
         }
-    ];
-    for c in cases {
-        let mut headers = header::HeaderMap::new();
-        if let Some(v) = c.v {
-            let value = header::HeaderValue::from_str(v).unwrap();
-            headers.try_insert(header::ACCEPT, value).unwrap();
+        let cases = [
+            Case {
+                v: Some("text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"),
+                assert: |got| {
+                    assert!(got.webp_accepted());
+                    assert!(got.avif_accepted());
+                },
+            },
+            Case {
+                v: Some(""),
+                assert: |got| {
+                    assert!(!got.webp_accepted());
+                    assert!(!got.avif_accepted());
+                },
+            },
+            Case {
+                v: None,
+                assert: |got| {
+                    assert!(!got.webp_accepted());
+                    assert!(!got.avif_accepted());
+                },
+            }
+        ];
+        for c in cases {
+            let mut headers = header::HeaderMap::new();
+            if let Some(v) = c.v {
+                let value = header::HeaderValue::from_str(v).unwrap();
+                headers.try_insert(header::ACCEPT, value).unwrap();
+            }
+            let got = extract_accepted_image_formats(&headers);
+            (c.assert)(got);
         }
-        let got = extract_accepted_image_formats(&headers);
-        (c.assert)(got);
     }
 }

@@ -46,158 +46,163 @@ impl Config {
     }
 }
 
-#[test]
-fn test_config_from_file() {
-    let cfg = Config::from_file("fanlin.json").expect("fanlin.json is not found");
-    assert_eq!(cfg.port, 3000);
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-#[test]
-fn test_config_from_file_not_found() {
-    assert!(Config::from_file("not_found.json").is_err());
-}
+    #[test]
+    fn test_config_from_file() {
+        let cfg = Config::from_file("fanlin.json").expect("fanlin.json is not found");
+        assert_eq!(cfg.port, 3000);
+    }
 
-#[test]
-fn test_legit_config() {
-    let cfg = r#"
-        {
-          "port": 3000,
-          "bind_addr": "0.0.0.0",
-          "max_clients": 1024,
-          "fallback_path": "/foo/no_img.jpg",
-          "profile_path": "/bar/default.icc",
-          "use_embedded_profile": true,
-          "client": {
-            "s3": {
-              "aws_region": "ap-northeast-1",
-              "aws_endpoint_url": "http://127.0.0.1:4567",
-              "aws_access_key_id": "dummy_key",
-              "aws_secret_access_key": "dummy_secret"
-            },
-            "web": {
-              "user_agent": "fanlin-rs/0.0.1",
-              "timeout": 5
+    #[test]
+    fn test_config_from_file_not_found() {
+        assert!(Config::from_file("not_found.json").is_err());
+    }
+
+    #[test]
+    fn test_legit_config() {
+        let cfg = r#"
+            {
+              "port": 3000,
+              "bind_addr": "0.0.0.0",
+              "max_clients": 1024,
+              "fallback_path": "/foo/no_img.jpg",
+              "profile_path": "/bar/default.icc",
+              "use_embedded_profile": true,
+              "client": {
+                "s3": {
+                  "aws_region": "ap-northeast-1",
+                  "aws_endpoint_url": "http://127.0.0.1:4567",
+                  "aws_access_key_id": "dummy_key",
+                  "aws_secret_access_key": "dummy_secret"
+                },
+                "web": {
+                  "user_agent": "fanlin-rs/0.0.1",
+                  "timeout": 5
+                }
+              },
+              "providers": [
+                {
+                  "path": "foo",
+                  "src": "s3://local-test/images"
+                },
+                {
+                  "path": "bar",
+                  "src": "http://127.0.0.1:3000/foo"
+                }
+              ]
             }
-          },
-          "providers": [
+        "#;
+
+        let got = Config::from_reader(cfg.as_bytes()).expect("failed to read config");
+        assert_eq!(got.port, 3000);
+        assert_eq!(got.bind_addr, "0.0.0.0");
+        assert_eq!(got.max_clients, 1024);
+        assert_eq!(got.fallback_path, Some("/foo/no_img.jpg".to_string()));
+        assert_eq!(got.profile_path, Some("/bar/default.icc".to_string()));
+        assert_eq!(got.use_embedded_profile, Some(true));
+        assert_eq!(got.client.s3.aws_region, "ap-northeast-1".to_string());
+        assert_eq!(
+            got.client.s3.aws_endpoint_url,
+            Some("http://127.0.0.1:4567".to_string())
+        );
+        assert_eq!(
+            got.client.s3.aws_access_key_id,
+            Some("dummy_key".to_string())
+        );
+        assert_eq!(
+            got.client.s3.aws_secret_access_key,
+            Some("dummy_secret".to_string())
+        );
+        assert_eq!(got.providers.len(), 2);
+        assert_eq!(got.providers[0].path, "foo".to_string());
+        assert_eq!(got.providers[0].src, "s3://local-test/images".to_string());
+        assert_eq!(got.providers[1].path, "bar".to_string());
+        assert_eq!(
+            got.providers[1].src,
+            "http://127.0.0.1:3000/foo".to_string()
+        );
+    }
+
+    #[test]
+    fn test_empty_config() {
+        let cfg = "{}";
+        assert!(Config::from_reader(cfg.as_bytes()).is_err());
+    }
+
+    #[test]
+    fn test_not_json_config() {
+        let cfg = "---";
+        assert!(Config::from_reader(cfg.as_bytes()).is_err());
+    }
+
+    #[test]
+    fn test_config_with_trailing_comma() {
+        let cfg = r#"
             {
-              "path": "foo",
-              "src": "s3://local-test/images"
-            },
-            {
-              "path": "bar",
-              "src": "http://127.0.0.1:3000/foo"
+              "port": 3000,
+              "bind_addr": "0.0.0.0",
+              "max_clients": 1024,
+              "client": {
+                "s3": {
+                  "aws_region": "ap-northeast-1",
+                },
+                "web": {
+                  "user_agent": "fanlin-rs/0.0.1",
+                  "timeout": 5,
+                },
+              },
+              "providers": [
+                {
+                  "path": "foo",
+                  "src": "s3://local-test/images",
+                },
+                {
+                  "path": "bar",
+                  "src": "http://127.0.0.1:3000/foo",
+                },
+              ],
             }
-          ]
-        }
-    "#;
+        "#;
 
-    let got = Config::from_reader(cfg.as_bytes()).expect("failed to read config");
-    assert_eq!(got.port, 3000);
-    assert_eq!(got.bind_addr, "0.0.0.0");
-    assert_eq!(got.max_clients, 1024);
-    assert_eq!(got.fallback_path, Some("/foo/no_img.jpg".to_string()));
-    assert_eq!(got.profile_path, Some("/bar/default.icc".to_string()));
-    assert_eq!(got.use_embedded_profile, Some(true));
-    assert_eq!(got.client.s3.aws_region, "ap-northeast-1".to_string());
-    assert_eq!(
-        got.client.s3.aws_endpoint_url,
-        Some("http://127.0.0.1:4567".to_string())
-    );
-    assert_eq!(
-        got.client.s3.aws_access_key_id,
-        Some("dummy_key".to_string())
-    );
-    assert_eq!(
-        got.client.s3.aws_secret_access_key,
-        Some("dummy_secret".to_string())
-    );
-    assert_eq!(got.providers.len(), 2);
-    assert_eq!(got.providers[0].path, "foo".to_string());
-    assert_eq!(got.providers[0].src, "s3://local-test/images".to_string());
-    assert_eq!(got.providers[1].path, "bar".to_string());
-    assert_eq!(
-        got.providers[1].src,
-        "http://127.0.0.1:3000/foo".to_string()
-    );
-}
+        assert!(Config::from_reader(cfg.as_bytes()).is_err());
+    }
 
-#[test]
-fn test_empty_config() {
-    let cfg = "{}";
-    assert!(Config::from_reader(cfg.as_bytes()).is_err());
-}
-
-#[test]
-fn test_not_json_config() {
-    let cfg = "---";
-    assert!(Config::from_reader(cfg.as_bytes()).is_err());
-}
-
-#[test]
-fn test_config_with_trailing_comma() {
-    let cfg = r#"
-        {
-          "port": 3000,
-          "bind_addr": "0.0.0.0",
-          "max_clients": 1024,
-          "client": {
-            "s3": {
-              "aws_region": "ap-northeast-1",
-            },
-            "web": {
-              "user_agent": "fanlin-rs/0.0.1",
-              "timeout": 5,
-            },
-          },
-          "providers": [
+    #[test]
+    fn test_optional_config() {
+        let cfg = r#"
             {
-              "path": "foo",
-              "src": "s3://local-test/images",
-            },
-            {
-              "path": "bar",
-              "src": "http://127.0.0.1:3000/foo",
-            },
-          ],
-        }
-    "#;
-
-    assert!(Config::from_reader(cfg.as_bytes()).is_err());
-}
-
-#[test]
-fn test_optional_config() {
-    let cfg = r#"
-        {
-          "port": 3000,
-          "bind_addr": "0.0.0.0",
-          "max_clients": 1024,
-          "client": {
-            "s3": {
-              "aws_region": "ap-northeast-1"
-            },
-            "web": {
-              "user_agent": "fanlin-rs/0.0.1",
-              "timeout": 5
+              "port": 3000,
+              "bind_addr": "0.0.0.0",
+              "max_clients": 1024,
+              "client": {
+                "s3": {
+                  "aws_region": "ap-northeast-1"
+                },
+                "web": {
+                  "user_agent": "fanlin-rs/0.0.1",
+                  "timeout": 5
+                }
+              },
+              "providers": [
+                {
+                  "path": "foo",
+                  "src": "s3://local-test/images"
+                },
+                {
+                  "path": "bar",
+                  "src": "http://127.0.0.1:3000/foo"
+                }
+              ]
             }
-          },
-          "providers": [
-            {
-              "path": "foo",
-              "src": "s3://local-test/images"
-            },
-            {
-              "path": "bar",
-              "src": "http://127.0.0.1:3000/foo"
-            }
-          ]
-        }
-    "#;
+        "#;
 
-    let got = Config::from_reader(cfg.as_bytes()).expect("failed to read config");
-    assert_eq!(got.fallback_path, None);
-    assert_eq!(got.client.s3.aws_endpoint_url, None);
-    assert_eq!(got.client.s3.aws_access_key_id, None);
-    assert_eq!(got.client.s3.aws_secret_access_key, None);
+        let got = Config::from_reader(cfg.as_bytes()).expect("failed to read config");
+        assert_eq!(got.fallback_path, None);
+        assert_eq!(got.client.s3.aws_endpoint_url, None);
+        assert_eq!(got.client.s3.aws_access_key_id, None);
+        assert_eq!(got.client.s3.aws_secret_access_key, None);
+    }
 }
