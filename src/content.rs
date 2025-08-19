@@ -47,15 +47,20 @@ impl Format {
     }
 }
 
-#[test]
-fn test_content_format_flag() {
-    let mut format = Format::new();
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    assert!(!format.webp_accepted());
-    format.accept_webp();
-    assert!(format.webp_accepted());
+    #[test]
+    fn test_content_format_flag() {
+        let mut format = Format::new();
 
-    assert!(!format.avif_accepted());
-    format.accept_avif();
-    assert!(format.avif_accepted());
+        assert!(!format.webp_accepted());
+        format.accept_webp();
+        assert!(format.webp_accepted());
+
+        assert!(!format.avif_accepted());
+        format.accept_avif();
+        assert!(format.avif_accepted());
+    }
 }

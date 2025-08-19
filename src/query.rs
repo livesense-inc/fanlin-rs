@@ -93,308 +93,313 @@ impl Query {
     }
 }
 
-#[test]
-fn test_query() {
-    struct Case {
-        query_string: &'static str,
-        error: bool,
-        want: Query,
-        assert: fn(Query),
-    }
-    let cases = [
-        Case {
-            query_string: "http://127.0.0.1:3000",
-            error: false,
-            want: Query {
-                ..Default::default()
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_query() {
+        struct Case {
+            query_string: &'static str,
+            error: bool,
+            want: Query,
+            assert: fn(Query),
+        }
+        let cases = [
+            Case {
+                query_string: "http://127.0.0.1:3000",
+                error: false,
+                want: Query {
+                    ..Default::default()
+                },
+                assert: |got| {
+                    assert_eq!(got.dimensions(), None);
+                    assert_eq!(got.fill_color(), (32, 32, 32));
+                    assert_eq!(got.quality(), 75);
+                    assert!(!got.cropping());
+                    assert_eq!(got.blur(), 0.0);
+                    assert!(!got.grayscale());
+                    assert!(!got.inverse());
+                    assert!(!got.use_avif());
+                    assert!(!got.use_webp());
+                    assert!(got.as_is());
+                    assert!(!got.unsupported_scale_size());
+                },
             },
-            assert: |got| {
-                assert_eq!(got.dimensions(), None);
-                assert_eq!(got.fill_color(), (32, 32, 32));
-                assert_eq!(got.quality(), 75);
-                assert!(!got.cropping());
-                assert_eq!(got.blur(), 0.0);
-                assert!(!got.grayscale());
-                assert!(!got.inverse());
-                assert!(!got.use_avif());
-                assert!(!got.use_webp());
-                assert!(got.as_is());
-                assert!(!got.unsupported_scale_size());
+            Case {
+                query_string: "http://127.0.0.1:3000?w=",
+                error: true,
+                want: Query {
+                    ..Default::default()
+                },
+                assert: |_| {},
             },
-        },
-        Case {
-            query_string: "http://127.0.0.1:3000?w=",
-            error: true,
-            want: Query {
-                ..Default::default()
+            Case {
+                query_string: "http://127.0.0.1:3000?unknown=1",
+                error: false,
+                want: Query {
+                    ..Default::default()
+                },
+                assert: |_| {},
             },
-            assert: |_| {},
-        },
-        Case {
-            query_string: "http://127.0.0.1:3000?unknown=1",
-            error: false,
-            want: Query {
-                ..Default::default()
+            Case {
+                query_string: "http://127.0.0.1:3000?w=2000&h=1000",
+                error: false,
+                want: Query {
+                    w: Some(2000),
+                    h: Some(1000),
+                    ..Default::default()
+                },
+                assert: |got| {
+                    assert_eq!(got.dimensions(), Some((2000, 1000)));
+                    assert!(!got.as_is());
+                    assert!(!got.unsupported_scale_size());
+                },
             },
-            assert: |_| {},
-        },
-        Case {
-            query_string: "http://127.0.0.1:3000?w=2000&h=1000",
-            error: false,
-            want: Query {
-                w: Some(2000),
-                h: Some(1000),
-                ..Default::default()
+            Case {
+                query_string: "http://127.0.0.1:3000?w=1618",
+                error: false,
+                want: Query {
+                    w: Some(1618),
+                    ..Default::default()
+                },
+                assert: |got| {
+                    assert_eq!(got.dimensions(), None);
+                    assert!(got.as_is());
+                    assert!(!got.unsupported_scale_size());
+                },
             },
-            assert: |got| {
-                assert_eq!(got.dimensions(), Some((2000, 1000)));
-                assert!(!got.as_is());
-                assert!(!got.unsupported_scale_size());
+            Case {
+                query_string: "http://127.0.0.1:3000?w=2001&h=1001",
+                error: false,
+                want: Query {
+                    w: Some(2001),
+                    h: Some(1001),
+                    ..Default::default()
+                },
+                assert: |got| {
+                    assert_eq!(got.dimensions(), Some((2001, 1001)));
+                    assert!(!got.as_is());
+                    assert!(got.unsupported_scale_size());
+                },
             },
-        },
-        Case {
-            query_string: "http://127.0.0.1:3000?w=1618",
-            error: false,
-            want: Query {
-                w: Some(1618),
-                ..Default::default()
+            Case {
+                query_string: "http://127.0.0.1:3000?w=foo&h=bar",
+                error: true,
+                want: Query {
+                    ..Default::default()
+                },
+                assert: |_| {},
             },
-            assert: |got| {
-                assert_eq!(got.dimensions(), None);
-                assert!(got.as_is());
-                assert!(!got.unsupported_scale_size());
+            Case {
+                query_string: "http://127.0.0.1:3000?rgb=255,255,255",
+                error: false,
+                want: Query {
+                    rgb: Some("255,255,255".to_string()),
+                    ..Default::default()
+                },
+                assert: |got| {
+                    assert_eq!(got.fill_color(), (255, 255, 255));
+                    assert!(got.as_is());
+                },
             },
-        },
-        Case {
-            query_string: "http://127.0.0.1:3000?w=2001&h=1001",
-            error: false,
-            want: Query {
-                w: Some(2001),
-                h: Some(1001),
-                ..Default::default()
+            Case {
+                query_string: "http://127.0.0.1:3000?rgb=255,255,255,255",
+                error: false,
+                want: Query {
+                    rgb: Some("255,255,255,255".to_string()),
+                    ..Default::default()
+                },
+                assert: |got| {
+                    assert_eq!(got.fill_color(), (255, 255, 255));
+                    assert!(got.as_is());
+                },
             },
-            assert: |got| {
-                assert_eq!(got.dimensions(), Some((2001, 1001)));
-                assert!(!got.as_is());
-                assert!(got.unsupported_scale_size());
+            Case {
+                query_string: "http://127.0.0.1:3000?rgb=255,255",
+                error: false,
+                want: Query {
+                    rgb: Some("255,255".to_string()),
+                    ..Default::default()
+                },
+                assert: |got| {
+                    assert_eq!(got.fill_color(), (32, 32, 32));
+                    assert!(got.as_is());
+                },
             },
-        },
-        Case {
-            query_string: "http://127.0.0.1:3000?w=foo&h=bar",
-            error: true,
-            want: Query {
-                ..Default::default()
+            Case {
+                query_string: "http://127.0.0.1:3000?rgb=foo,bar,baz",
+                error: false,
+                want: Query {
+                    rgb: Some("foo,bar,baz".to_string()),
+                    ..Default::default()
+                },
+                assert: |got| {
+                    assert_eq!(got.fill_color(), (32, 32, 32));
+                    assert!(got.as_is());
+                },
             },
-            assert: |_| {},
-        },
-        Case {
-            query_string: "http://127.0.0.1:3000?rgb=255,255,255",
-            error: false,
-            want: Query {
-                rgb: Some("255,255,255".to_string()),
-                ..Default::default()
+            Case {
+                query_string: "http://127.0.0.1:3000?quality=50",
+                error: false,
+                want: Query {
+                    quality: Some(50),
+                    ..Default::default()
+                },
+                assert: |got| {
+                    assert_eq!(got.quality(), 50);
+                    assert!(got.as_is());
+                },
             },
-            assert: |got| {
-                assert_eq!(got.fill_color(), (255, 255, 255));
-                assert!(got.as_is());
+            Case {
+                query_string: "http://127.0.0.1:3000?quality=foo",
+                error: true,
+                want: Query {
+                    ..Default::default()
+                },
+                assert: |_| {},
             },
-        },
-        Case {
-            query_string: "http://127.0.0.1:3000?rgb=255,255,255,255",
-            error: false,
-            want: Query {
-                rgb: Some("255,255,255,255".to_string()),
-                ..Default::default()
+            Case {
+                query_string: "http://127.0.0.1:3000?crop=true",
+                error: false,
+                want: Query {
+                    crop: Some(true),
+                    ..Default::default()
+                },
+                assert: |got| {
+                    assert!(got.cropping());
+                    assert!(got.as_is());
+                },
             },
-            assert: |got| {
-                assert_eq!(got.fill_color(), (255, 255, 255));
-                assert!(got.as_is());
+            Case {
+                query_string: "http://127.0.0.1:3000?crop=foo",
+                error: true,
+                want: Query {
+                    ..Default::default()
+                },
+                assert: |_| {},
             },
-        },
-        Case {
-            query_string: "http://127.0.0.1:3000?rgb=255,255",
-            error: false,
-            want: Query {
-                rgb: Some("255,255".to_string()),
-                ..Default::default()
+            Case {
+                query_string: "http://127.0.0.1:3000?blur=10",
+                error: false,
+                want: Query {
+                    blur: Some(10),
+                    ..Default::default()
+                },
+                assert: |got| {
+                    assert_eq!(got.blur(), 10.0);
+                    assert!(!got.as_is());
+                },
             },
-            assert: |got| {
-                assert_eq!(got.fill_color(), (32, 32, 32));
-                assert!(got.as_is());
+            Case {
+                query_string: "http://127.0.0.1:3000?blur=foo",
+                error: true,
+                want: Query {
+                    ..Default::default()
+                },
+                assert: |_| {},
             },
-        },
-        Case {
-            query_string: "http://127.0.0.1:3000?rgb=foo,bar,baz",
-            error: false,
-            want: Query {
-                rgb: Some("foo,bar,baz".to_string()),
-                ..Default::default()
+            Case {
+                query_string: "http://127.0.0.1:3000?grayscale=true",
+                error: false,
+                want: Query {
+                    grayscale: Some(true),
+                    ..Default::default()
+                },
+                assert: |got| {
+                    assert!(got.grayscale());
+                    assert!(!got.as_is());
+                },
             },
-            assert: |got| {
-                assert_eq!(got.fill_color(), (32, 32, 32));
-                assert!(got.as_is());
+            Case {
+                query_string: "http://127.0.0.1:3000?grayscale=foo",
+                error: true,
+                want: Query {
+                    ..Default::default()
+                },
+                assert: |_| {},
             },
-        },
-        Case {
-            query_string: "http://127.0.0.1:3000?quality=50",
-            error: false,
-            want: Query {
-                quality: Some(50),
-                ..Default::default()
+            Case {
+                query_string: "http://127.0.0.1:3000?inverse=true",
+                error: false,
+                want: Query {
+                    inverse: Some(true),
+                    ..Default::default()
+                },
+                assert: |got| {
+                    assert!(got.inverse());
+                    assert!(!got.as_is());
+                },
             },
-            assert: |got| {
-                assert_eq!(got.quality(), 50);
-                assert!(got.as_is());
+            Case {
+                query_string: "http://127.0.0.1:3000?inverse=foo",
+                error: true,
+                want: Query {
+                    ..Default::default()
+                },
+                assert: |_| {},
             },
-        },
-        Case {
-            query_string: "http://127.0.0.1:3000?quality=foo",
-            error: true,
-            want: Query {
-                ..Default::default()
+            Case {
+                query_string: "http://127.0.0.1:3000?avif=true",
+                error: false,
+                want: Query {
+                    avif: Some(true),
+                    ..Default::default()
+                },
+                assert: |got| {
+                    assert!(got.use_avif());
+                    assert!(!got.as_is());
+                },
             },
-            assert: |_| {},
-        },
-        Case {
-            query_string: "http://127.0.0.1:3000?crop=true",
-            error: false,
-            want: Query {
-                crop: Some(true),
-                ..Default::default()
+            Case {
+                query_string: "http://127.0.0.1:3000?avif=foo",
+                error: true,
+                want: Query {
+                    ..Default::default()
+                },
+                assert: |_| {},
             },
-            assert: |got| {
-                assert!(got.cropping());
-                assert!(got.as_is());
+            Case {
+                query_string: "http://127.0.0.1:3000?webp=true",
+                error: false,
+                want: Query {
+                    webp: Some(true),
+                    ..Default::default()
+                },
+                assert: |got| {
+                    assert!(got.use_webp());
+                    assert!(!got.as_is());
+                },
             },
-        },
-        Case {
-            query_string: "http://127.0.0.1:3000?crop=foo",
-            error: true,
-            want: Query {
-                ..Default::default()
+            Case {
+                query_string: "http://127.0.0.1:3000?webp=foo",
+                error: true,
+                want: Query {
+                    ..Default::default()
+                },
+                assert: |_| {},
             },
-            assert: |_| {},
-        },
-        Case {
-            query_string: "http://127.0.0.1:3000?blur=10",
-            error: false,
-            want: Query {
-                blur: Some(10),
-                ..Default::default()
-            },
-            assert: |got| {
-                assert_eq!(got.blur(), 10.0);
-                assert!(!got.as_is());
-            },
-        },
-        Case {
-            query_string: "http://127.0.0.1:3000?blur=foo",
-            error: true,
-            want: Query {
-                ..Default::default()
-            },
-            assert: |_| {},
-        },
-        Case {
-            query_string: "http://127.0.0.1:3000?grayscale=true",
-            error: false,
-            want: Query {
-                grayscale: Some(true),
-                ..Default::default()
-            },
-            assert: |got| {
-                assert!(got.grayscale());
-                assert!(!got.as_is());
-            },
-        },
-        Case {
-            query_string: "http://127.0.0.1:3000?grayscale=foo",
-            error: true,
-            want: Query {
-                ..Default::default()
-            },
-            assert: |_| {},
-        },
-        Case {
-            query_string: "http://127.0.0.1:3000?inverse=true",
-            error: false,
-            want: Query {
-                inverse: Some(true),
-                ..Default::default()
-            },
-            assert: |got| {
-                assert!(got.inverse());
-                assert!(!got.as_is());
-            },
-        },
-        Case {
-            query_string: "http://127.0.0.1:3000?inverse=foo",
-            error: true,
-            want: Query {
-                ..Default::default()
-            },
-            assert: |_| {},
-        },
-        Case {
-            query_string: "http://127.0.0.1:3000?avif=true",
-            error: false,
-            want: Query {
-                avif: Some(true),
-                ..Default::default()
-            },
-            assert: |got| {
-                assert!(got.use_avif());
-                assert!(!got.as_is());
-            },
-        },
-        Case {
-            query_string: "http://127.0.0.1:3000?avif=foo",
-            error: true,
-            want: Query {
-                ..Default::default()
-            },
-            assert: |_| {},
-        },
-        Case {
-            query_string: "http://127.0.0.1:3000?webp=true",
-            error: false,
-            want: Query {
-                webp: Some(true),
-                ..Default::default()
-            },
-            assert: |got| {
-                assert!(got.use_webp());
-                assert!(!got.as_is());
-            },
-        },
-        Case {
-            query_string: "http://127.0.0.1:3000?webp=foo",
-            error: true,
-            want: Query {
-                ..Default::default()
-            },
-            assert: |_| {},
-        },
-    ];
-    for c in cases {
-        let uri = c
-            .query_string
-            .parse::<axum::http::Uri>()
-            .expect("failed to parse a string as an URI");
-        match axum::extract::Query::try_from_uri(&uri) {
-            Ok(axum::extract::Query(got)) => {
-                assert!(!c.error, "case: {}", c.query_string);
-                assert!(
-                    got == c.want,
-                    "case: {}, want: {:?}, got: {:?}",
-                    c.query_string,
-                    c.want,
-                    got,
-                );
-                (c.assert)(got);
-            }
-            Err(err) => {
-                assert!(c.error, "case: {}, error: {err}", c.query_string);
+        ];
+        for c in cases {
+            let uri = c
+                .query_string
+                .parse::<axum::http::Uri>()
+                .expect("failed to parse a string as an URI");
+            match axum::extract::Query::try_from_uri(&uri) {
+                Ok(axum::extract::Query(got)) => {
+                    assert!(!c.error, "case: {}", c.query_string);
+                    assert!(
+                        got == c.want,
+                        "case: {}, want: {:?}, got: {:?}",
+                        c.query_string,
+                        c.want,
+                        got,
+                    );
+                    (c.assert)(got);
+                }
+                Err(err) => {
+                    assert!(c.error, "case: {}, error: {err}", c.query_string);
+                }
             }
         }
     }
